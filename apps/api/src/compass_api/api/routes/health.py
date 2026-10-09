@@ -10,21 +10,18 @@ Two distinct questions, deliberately kept separate:
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Literal
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from compass_api import __version__
-from compass_api.db.session import get_session
+from compass_api.api.deps import SessionDep
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["operations"])
-
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 class HealthResponse(BaseModel):
