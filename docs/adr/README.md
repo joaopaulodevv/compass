@@ -15,6 +15,8 @@ intentions.
 | [0005](0005-deterministic-financial-engine.md)                   | Deterministic engine computes; the LLM explains  | Accepted |
 | [0006](0006-open-finance-provider-abstraction.md)                | Open Finance data enters through a protocol Compass owns | Accepted |
 | [0007](0007-money-as-signed-decimals.md)                         | Money is a signed decimal, everywhere            | Accepted |
+| [0008](0008-pure-financial-engine.md)                            | The financial engine is pure Python over fetched rows | Accepted |
+| [0009](0009-internal-movements-are-not-cash-flow.md)             | Internal movements are excluded from income and expenses | Accepted |
 
 ## Not yet decided
 
@@ -26,7 +28,8 @@ They live in [../roadmap.md](../roadmap.md) until there is enough information to
 - Vector store (Pinecone vs `pgvector`)
 - Observability vendors (Langfuse, Datadog) and their integration points
 - Agent topology and conversation memory
-- Expense categorisation approach (rules vs model)
+- Whether expense categorisation stays rule-based or gains a model. The rules are in
+  place and measurable; ADR-0008 and ADR-0009 depend on them staying deterministic
 
 ## Conventions
 

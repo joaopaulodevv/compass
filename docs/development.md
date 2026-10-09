@@ -100,6 +100,18 @@ curl -H "X-User-Id: $USER" 'localhost:8000/transactions?limit=5'
 curl -H "X-User-Id: $USER" 'localhost:8000/transactions?since=2026-01-01&until=2026-03-31'
 ```
 
+Computed views, derived on request from those transactions and never stored:
+
+```bash
+curl -H "X-User-Id: $USER" localhost:8000/insights/cashflow
+curl -H "X-User-Id: $USER" localhost:8000/insights/recurring-expenses
+curl -H "X-User-Id: $USER" localhost:8000/insights/saving-capacity
+
+# Any window, both ends optional and inclusive:
+curl -H "X-User-Id: $USER" \
+  'localhost:8000/insights/cashflow?since=2026-01-01&until=2026-06-30'
+```
+
 A narrower window can be requested explicitly; both ends are optional and inclusive:
 
 ```bash
@@ -120,6 +132,18 @@ Things worth knowing:
   are involved.
 - Fixture dates are stored as a month offset plus a day, resolved against today, so the
   sandbox data is always recent.
+- **Expenses exclude internal movements.** A credit-card bill payment and a transfer to
+  the user's own savings move money they already have; the card's spending is counted
+  where it happened. `internal_movements` reports the total left out, so the figures can
+  be reconciled against a raw sum of the statement. This is the single assumption that
+  most affects every number - see `docs/adr/0009-internal-movements-are-not-cash-flow.md`.
+- **Categories come from deterministic rules**, assigned at ingestion and stored with
+  `category_rule` (`keyword:groceries`, `provider:utilities`, `sign:credit`, `fallback`)
+  so a surprising label can be traced. Changing the rules and re-running the sync
+  re-categorises everything, because the upsert refreshes the column.
+- **Saving capacity is the median monthly net over whole calendar months**, floored at
+  zero. `months_considered: 0` means there is not enough history to answer - not that
+  the capacity is zero.
 
 ## 6. Tests
 
@@ -135,6 +159,11 @@ Two suites, by design:
 - `apps/api/tests/integration` - marked `integration`; they need a reachable PostgreSQL
   with migrations applied (`make migrate`). They **skip** rather than fail when no
   database is reachable, so `make test` stays useful offline.
+
+The financial engine's tests need no infrastructure at all: the calculations are pure
+functions, so each case is a hand-written list of movements and a value worked out by
+hand. That is deliberate - these are the numbers everything else trusts, and a test that
+needs a database is a test nobody writes for the awkward cases.
 
 Integration tests create their own user and delete it afterwards, which cascades to that
 user's accounts and transactions - so tests cannot see each other's data, and the cascade
@@ -260,3 +289,10 @@ use the id of a user you created.
 
 **`/accounts` returns an empty list** - nothing has been ingested for that user yet. Run
 the sync call first, and check you are sending the same `X-User-Id`.
+
+**`/insights/saving-capacity` reports `months_considered: 0`** - the window contains no
+*whole* calendar month. Widen it; partial months are excluded on purpose.
+
+**A transaction has an unexpected category** - read its `category_rule` on
+`GET /transactions`. It names the rule that fired, so the fix is either a rule in
+`services/categorization.py` or nothing at all.

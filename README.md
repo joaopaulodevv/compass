@@ -3,12 +3,13 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phases 1-2 of 11 complete.** The backend foundation is built, and
-> financial data now flows in from an Open Finance abstraction into PostgreSQL and back
-> out over HTTP - against a local sandbox fixture, not a real provider. The financial
-> calculations, the agent, the knowledge base and the frontend are **not implemented
-> yet**. This README distinguishes throughout between what exists and what is planned -
-> see the [roadmap](docs/roadmap.md).
+> **Project status: Phases 1-3 of 11 complete.** Financial data flows in from an Open
+> Finance abstraction into PostgreSQL, and a deterministic engine turns it into cash
+> flow, categorised spending, recurring commitments and a sustainable saving capacity -
+> against a local sandbox fixture, not a real provider. The goal simulation, the agent,
+> the knowledge base and the frontend are **not implemented yet**. This README
+> distinguishes throughout between what exists and what is planned - see the
+> [roadmap](docs/roadmap.md).
 
 ---
 
@@ -91,11 +92,25 @@ Full detail, including the layering rules and the request flow for a goal simula
   (filterable by account and date window, paginated)
 - Money as signed `NUMERIC(18, 2)`, serialised as JSON strings so no client rounds
   centavos into a float
-- 94 tests (unit + integration), coverage reporting, seven ADRs
 
-**Planned next** - the deterministic financial engine: cash flow over a window, expense
-categorisation, recurring-expense detection, sustainable saving capacity. See
-[Phase 3](docs/roadmap.md#phase-3---deterministic-financial-engine-next).
+*Financial engine (Phase 3)*
+
+- Rule-based, deterministic expense categorisation, stored with the rule that produced it
+  so any label can be traced to its cause
+- Cash flow over a window: income, expenses, net, a monthly series marking partial
+  months, and a category breakdown
+- **Internal movements excluded** - a credit-card bill and a transfer to one's own
+  savings are not spending, and counting them would overstate expenses by about 80% on
+  the sandbox data (ADR-0009)
+- Recurring-expense detection with an explicit definition of "recurring"
+- Sustainable saving capacity: the median monthly net over whole calendar months, so one
+  bonus month cannot become a monthly promise
+- `GET /insights/cashflow`, `/insights/recurring-expenses`, `/insights/saving-capacity`
+- 166 tests (unit + integration), coverage reporting, nine ADRs
+
+**Planned next** - financial goals and simulation: how long a target takes at the
+measured saving capacity, the gap when a deadline is fixed, and comparison of paths. See
+[Phase 4](docs/roadmap.md#phase-4---goals-and-simulation-next).
 
 **Not implemented** - a real Open Finance provider, financial calculations, MCP tools,
 LangGraph agent, LLM calls, vector store, RAG ingestion, Langfuse, Datadog,
@@ -147,6 +162,11 @@ USER=00000000-0000-4000-8000-000000000001
 curl -X POST -H "X-User-Id: $USER" localhost:8000/open-finance/sync
 curl -H "X-User-Id: $USER" localhost:8000/accounts
 curl -H "X-User-Id: $USER" 'localhost:8000/transactions?limit=5'
+
+# Computed, never stored:
+curl -H "X-User-Id: $USER" localhost:8000/insights/cashflow
+curl -H "X-User-Id: $USER" localhost:8000/insights/recurring-expenses
+curl -H "X-User-Id: $USER" localhost:8000/insights/saving-capacity
 ```
 
 `X-User-Id` is a temporary stand-in for authentication; every financial query is already
@@ -178,7 +198,10 @@ make test-unit   # no infrastructure required
 make check       # lint + types + tests (what CI runs)
 ```
 
-94 tests. Unit tests construct settings explicitly and need no infrastructure.
+166 tests. The engine's tests need no infrastructure at all - they are hand-written
+movements with expected values worked out by hand, which is the only way to be confident
+the arithmetic is right rather than merely stable. Unit tests construct settings
+explicitly and need no infrastructure.
 Integration tests are marked `integration` and need a reachable PostgreSQL with
 migrations applied; they skip rather than fail without one. Each creates its own user and
 deletes it afterwards, so they cannot see each other's data, and the sandbox provider is
@@ -232,6 +255,8 @@ compass/
 | [0005](docs/adr/0005-deterministic-financial-engine.md) | The deterministic engine computes, the LLM explains |
 | [0006](docs/adr/0006-open-finance-provider-abstraction.md) | Open Finance data enters through a protocol Compass owns |
 | [0007](docs/adr/0007-money-as-signed-decimals.md) | Money is a signed decimal, everywhere |
+| [0008](docs/adr/0008-pure-financial-engine.md) | The financial engine is pure Python over fetched rows |
+| [0009](docs/adr/0009-internal-movements-are-not-cash-flow.md) | Internal movements are excluded from income and expenses |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the

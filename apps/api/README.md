@@ -24,7 +24,7 @@ Layout:
 | `domain/`       | Money rules and provider-neutral snapshots                   |
 | `providers/`    | Open Finance adapters, including the sandbox fixture         |
 | `repositories/` | All SQL                                                      |
-| `services/`     | Business rules - ingestion today, the financial engine next  |
+| `services/`     | Business rules: ingestion, categorisation, and the pure engine |
 | `migrations/`   | Alembic environment and revisions                            |
 
 Financial endpoints require an `X-User-Id` header while authentication does not exist.

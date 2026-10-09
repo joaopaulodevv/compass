@@ -38,22 +38,25 @@ working, tested state - no half-wired integrations waiting for a future commit.
 
 Deliberately still absent: provider SDKs, authentication, any calculation.
 
-## Phase 3 - Deterministic financial engine (next)
+## Phase 3 - Deterministic financial engine (done)
 
-The data is in place; this turns it into numbers.
+- Rule-based categorisation (`services/categorization.py`), matching whole token
+  sequences rather than substrings, stored on the transaction with the rule that produced
+  it so any label is traceable
+- Cash flow over a window: income, expenses, net, a monthly series that marks partial
+  months, and a category breakdown with shares
+- Internal movements (credit-card bill payments, transfers between the user's own
+  accounts) excluded from income and expenses, and reported separately so the exclusion
+  is visible - ADR-0009
+- Recurring-expense detection with an explicit definition: at least three occurrences, a
+  21-38 day average cadence, amounts within 25% of their median
+- Sustainable saving capacity: median monthly net over whole calendar months, floored at
+  zero
+- `GET /insights/cashflow`, `/insights/recurring-expenses`, `/insights/saving-capacity`
+- The engine is pure: no I/O, so every number is tested against hand-worked values with
+  no database in the loop - ADR-0008
 
-- Cash flow aggregation over a time window (inflow, outflow, net, per month)
-- Expense categorisation (rule-based first; a classifier is a later question), stored in
-  its own column so the provider's label stays auditable
-- Recurring expense detection
-- Sustainable saving capacity
-- Unit tests over fixed fixtures - these are the numbers everything else trusts
-- `GET /cashflow` and the first endpoints that return computed values
-
-The sandbox fixture was written for this: six months of salary, rent, utilities,
-subscriptions, groceries and transfers, with amounts that vary month to month.
-
-## Phase 4 - Goals and simulation
+## Phase 4 - Goals and simulation (next)
 
 - `FinancialGoal`, `FinancialProfile` models
 - Goal simulation, goal gap, path comparison, progress reforecast

@@ -14,19 +14,26 @@ Status legend used throughout this document:
 
 Phase 1 built the backend foundation. Phase 2 added the financial domain: data arrives
 from an Open Finance provider through an abstraction Compass owns, is stored
-idempotently, and can be read back over HTTP.
+idempotently, and can be read back over HTTP. Phase 3 added the engine that turns it
+into numbers - cash flow, categorised spending, recurring commitments, saving capacity -
+all computed on request and never stored.
 
 ```mermaid
 flowchart LR
     client["HTTP client\n(curl, Swagger UI)"] --> api
 
     subgraph app["FastAPI application (apps/api) - Implemented"]
-        api["API layer\n/health /ready\n/open-finance/sync\n/accounts /transactions"]
-        svc["Sync service\nidempotent ingestion"]
+        api["API layer\n/health /ready\n/open-finance/sync\n/accounts /transactions\n/insights/*"]
+        svc["Sync service\nidempotent ingestion\n+ categorisation"]
+        engine["Financial engine (pure)\ncashflow, recurring,\nsaving capacity"]
+        insights["Insights service\nreads rows, runs the engine"]
         repo["Repositories\naccounts, transactions,\ninstitutions, users"]
         prov["Provider adapter\nMockOpenFinanceProvider"]
         api --> svc
+        api --> insights
         api --> repo
+        insights --> repo
+        insights --> engine
         svc --> repo
         svc --> prov
     end
@@ -57,7 +64,7 @@ flowchart TB
     agent -->|MCP| tools["Financial MCP tools\n(Future)"]
     agent -->|retrieval| rag["Knowledge base / RAG\n(Future)"]
 
-    tools --> services["Financial services\ndeterministic calculations\n(Planned)"]
+    tools --> services["Financial engine\ndeterministic calculations\n(Implemented)"]
     api --> sync["Sync service\n(Implemented)"]
     services --> repos["Repositories\n(Implemented)"]
     sync --> repos
@@ -104,13 +111,26 @@ In the code today:
 - `api/routes/open_finance.py` validates a window, calls `OpenFinanceSyncService`, maps
   the report to a response. It contains no rule about what a sync is.
 - `services/open_finance_sync.py` is the only place that knows what syncing a user means.
+- `services/cashflow.py`, `services/recurring.py` and `services/saving_capacity.py` are
+  **pure**: no session, no repository, no settings, no I/O at all. They take movements
+  and return numbers (ADR-0008).
+- `services/insights.py` is the only place that joins the two - it reads rows through the
+  repository and hands them to the engine. Routes orchestrate nothing.
 - `repositories/` owns all SQL and contains no financial rules.
-- An MCP tool for `simulate_goal` will be a schema plus a service call. If a tool body
-  grows a financial rule, that rule is in the wrong place (ADR-0004).
+- An MCP tool for `get_cashflow` will be a schema plus a call into the same pure
+  function. If a tool body grows a financial rule, that rule is in the wrong place
+  (ADR-0004).
 
 Repositories and services exist because there is now logic and SQL to hold. Phase 1
 deliberately had neither: a repository wrapping a single `SELECT 1` would have been
 ceremony, not architecture.
+
+### Why the engine is pure
+
+The engine's input type is `domain.analysis.Movement`, not the ORM `Transaction`. A
+calculation therefore cannot reach a relationship, trigger a lazy load, or depend on the
+schema - and its tests need no database, which is what makes it cheap to cover the edge
+cases that matter: a partial month, an empty window, three charges of ten centavos.
 
 ## 4. Separation of responsibilities (the core design decision)
 
@@ -210,8 +230,11 @@ Design points worth knowing:
 - **`account.type` is a VARCHAR with a CHECK constraint**, not a native PostgreSQL enum:
   adding a value later is an ordinary migration rather than an `ALTER TYPE` that cannot
   run inside a transaction.
-- **`provider_category` keeps the provider's own label.** Compass's categorisation is a
-  later phase and will get its own column, so the raw value stays auditable.
+- **`provider_category` keeps the provider's own label, and `category` holds Compass's
+  own.** They are separate columns on purpose: the provider's label stays auditable, and
+  `category_rule` records which rule produced ours, so a surprising categorisation can be
+  traced to its cause. The category is assigned at ingestion and refreshed by every
+  sync, which is how a change to the rules reaches rows already stored.
 
 Planned next, when the calculations that use them exist:
 
@@ -306,6 +329,9 @@ identifiers only - never amounts, descriptions or merchants.
 | `GET /accounts`            | List the user's accounts                 | Yes                  |
 | `GET /accounts/{id}`       | One account, scoped to its owner         | Yes                  |
 | `GET /transactions`        | Paginated, filterable by account and window | Yes               |
+| `GET /insights/cashflow`   | Income, expenses, net, monthly series, categories | Yes            |
+| `GET /insights/recurring-expenses` | Monthly recurring charges        | Yes                  |
+| `GET /insights/saving-capacity` | Sustainable monthly saving            | Yes                  |
 
 Keeping liveness and readiness separate means a database blip withholds traffic without
 causing an orchestrator to restart otherwise healthy processes. Probes require no user: an
@@ -319,6 +345,19 @@ changes nothing downstream.
 `POST /open-finance/sync` is synchronous because the sandbox provider answers instantly.
 Against a real provider it becomes a queued job returning `202` and a job id - the first
 concrete use for the Redis already in the stack.
+
+Everything under `/insights` is **computed on request and never stored**. That is why
+those paths do not look like resources: there is no cash-flow row anywhere, only
+transactions and a pure function over them.
+
+### What counts as income and expense
+
+A credit-card bill payment and a transfer to one's own savings are **internal**: they
+move money the user already has. They are excluded from income and expenses, because the
+card's spending is already counted where it happened. On the sandbox history, counting
+them would overstate expenses by about 80%. The excluded total is reported alongside the
+figures rather than dropped silently. See
+[ADR-0009](adr/0009-internal-movements-are-not-cash-flow.md).
 
 ## 9. Security principles
 
