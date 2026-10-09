@@ -18,6 +18,7 @@ intentions.
 | [0008](0008-pure-financial-engine.md)                            | The financial engine is pure Python over fetched rows | Accepted |
 | [0009](0009-internal-movements-are-not-cash-flow.md)             | Internal movements are excluded from income and expenses | Accepted |
 | [0010](0010-goals-store-terms-not-projections.md)                | A goal stores its terms; every projection is computed | Accepted |
+| [0011](0011-mcp-tools-as-a-second-transport.md)                  | MCP is a second transport over the same services | Accepted |
 
 ## Not yet decided
 

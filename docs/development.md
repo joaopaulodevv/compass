@@ -183,7 +183,24 @@ Worth knowing:
   growth - and Compass will not guess one until the knowledge base can supply a sourced,
   dated figure.
 
-## 6. Tests
+## 6. The MCP tool server
+
+The financial capabilities are also exposed as MCP tools, for an agent or any MCP client:
+
+```bash
+uv run --directory apps/api python -m compass_api.mcp_server   # stdio transport
+```
+
+Nine tools, each taking the acting user as an explicit `user_id` argument - the same
+stand-in for authentication the HTTP layer takes as a header. They are thin adapters over
+the same services the API uses, and `tests/integration/test_mcp_contract.py` asserts the
+two answer identically on real data.
+
+Adding a tool is adding a function to `FINANCIAL_TOOLS` in
+`apps/api/src/compass_api/mcp_server/tools.py`: the schema comes from the type hints and
+the description from the docstring.
+
+## 7. Tests
 
 ```bash
 make test                 # full suite with coverage
@@ -215,7 +232,7 @@ substitute for reading what is actually covered. Note one artefact: a few lines 
 immediately after an `await` inside the test client's worker thread are not traced, so
 they show as uncovered even though the tests exercise them.
 
-## 7. Code quality
+## 8. Code quality
 
 ```bash
 make lint        # ruff check
@@ -234,7 +251,7 @@ versions pinned in `apps/api/uv.lock`. Invoke pre-commit from the repository roo
 (`make hooks`, or `uv run --project apps/api pre-commit ...`): with `--directory` the
 working directory changes and pre-commit's path filters stop matching.
 
-## 8. Database migrations
+## 9. Database migrations
 
 ```bash
 make migrate                                   # upgrade head
@@ -260,7 +277,7 @@ Alembic takes the connection URL from application settings (`migrations/env.py`)
 migrations and the running application can never target different databases, and no
 connection string is ever committed.
 
-## 9. Environment variables
+## 10. Environment variables
 
 | Variable              | Required | Default                  | Purpose                              |
 | --------------------- | -------- | ------------------------ | ------------------------------------ |
@@ -278,7 +295,7 @@ connection string is ever committed.
 `DATABASE_URL` is the only required variable: the API cannot do anything useful without
 it, and a missing future credential must never stop the service from starting.
 
-## 10. Repository layout
+## 11. Repository layout
 
 ```
 compass/
@@ -291,6 +308,7 @@ compass/
 │   │   │   ├── domain/       # Money rules, provider-neutral snapshots
 │   │   │   ├── providers/    # Open Finance adapters (+ sandbox fixture)
 │   │   │   ├── repositories/ # All SQL lives here
+│   │   │   ├── mcp_server/   # MCP adapter over the same services
 │   │   │   ├── services/     # Business rules (ingestion today)
 │   │   │   ├── migrations/   # Alembic environment and revisions
 │   │   │   ├── seed.py       # Local demo user
@@ -304,7 +322,7 @@ compass/
 └── Makefile
 ```
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'compass_api'`** - the project is not installed
 in the virtualenv: `uv sync --directory apps/api --all-groups`.

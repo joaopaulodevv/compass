@@ -3,7 +3,7 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phases 1-4 of 11 complete.** Financial data flows in from an Open
+> **Project status: Phases 1-5 of 11 complete.** Financial data flows in from an Open
 > Finance abstraction into PostgreSQL, and a deterministic engine turns it into cash
 > flow, categorised spending, recurring commitments and a sustainable saving capacity -
 > against a local sandbox fixture, not a real provider. Goals can be set and simulated
@@ -53,7 +53,7 @@ flowchart TB
     web["Next.js frontend\n(Future)"] --> api
     api["FastAPI application API\n(foundation implemented)"]
     api --> agent["LangGraph agent\n(Future)"]
-    agent -->|MCP| tools["Financial tools\n(Future)"]
+    agent -->|MCP| tools["Financial tools\n(Implemented)"]
     agent -->|retrieval| rag["Knowledge base\n(Future)"]
     tools --> services["Financial services\ndeterministic\n(Future)"]
     services --> repos["Repositories\n(Planned)"]
@@ -119,15 +119,22 @@ Full detail, including the layering rules and the request flow for a goal simula
 - `POST /goals/simulate` answers "could I?" with nothing persisted
 - Expected returns are always the caller's assumption - Compass does not yet know what
   any product pays, and will not invent a rate
-- 231 tests (unit + integration), coverage reporting, ten ADRs
 
-**Planned next** - the MCP tool layer: the same pure functions exposed as tools for the
-future agent, with contract tests asserting the schemas and the services agree. See
-[Phase 5](docs/roadmap.md#phase-5---mcp-tool-layer-next).
+*MCP tool layer (Phase 5)*
 
-**Not implemented** - a real Open Finance provider, financial calculations, MCP tools,
-LangGraph agent, LLM calls, vector store, RAG ingestion, Langfuse, Datadog,
-authentication, recommendations, frontend.
+- Nine tools exposing the engine to an agent, thin over the same services the HTTP API
+  uses, with contract tests asserting the two answer identically
+- Schemas from type hints, descriptions from docstrings - a tool cannot drift from what
+  it claims to do
+- Runs standalone over stdio for any MCP client
+- 255 tests (unit + integration), coverage reporting, eleven ADRs
+
+**Planned next** - the agent layer: a LangGraph conversation that reaches the engine
+through those tools, behind an LLM provider interface, with mocked model calls in the
+tests. See [Phase 6](docs/roadmap.md#phase-6---agent-layer).
+
+**Not implemented** - a real Open Finance provider, LangGraph agent, LLM calls, vector
+store, RAG ingestion, Langfuse, Datadog, authentication, recommendations, frontend.
 
 Redis runs in the local stack but **nothing consumes it yet**; it is infrastructure
 prepared for caching, background jobs and rate limiting. No client library is installed,
@@ -146,7 +153,7 @@ because inventing a use case to justify a dependency is worse than an idle conta
 | CI               | GitHub Actions                              | Implemented             |
 | Local infra      | Docker Compose                              | Implemented             |
 | Agent            | LangGraph, provider-agnostic LLM interface (OpenAI first) | Future    |
-| Tooling protocol | MCP                                         | Future                  |
+| Tooling protocol | MCP (`mcp` SDK, stdio server)               | Implemented             |
 | Financial data (real) | A vendor adapter behind the same protocol | Future              |
 | Knowledge base   | RAG, Pinecone intended (undecided)          | Future                  |
 | Observability    | Langfuse (agent), Datadog (application)     | Future                  |
@@ -277,6 +284,7 @@ compass/
 | [0008](docs/adr/0008-pure-financial-engine.md) | The financial engine is pure Python over fetched rows |
 | [0009](docs/adr/0009-internal-movements-are-not-cash-flow.md) | Internal movements are excluded from income and expenses |
 | [0010](docs/adr/0010-goals-store-terms-not-projections.md) | A goal stores its terms; every projection is computed |
+| [0011](docs/adr/0011-mcp-tools-as-a-second-transport.md) | MCP is a second transport over the same services |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the

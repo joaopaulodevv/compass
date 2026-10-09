@@ -76,14 +76,16 @@ consumer would be premature: what the agent will actually need - saving capacity
 recurring commitments, cash-flow shape - is already computed from real data. It belongs
 with the suitability rules in Phase 8, where something finally reads it.
 
-## Phase 5 - MCP tool layer (next)
+## Phase 5 - MCP tool layer (done)
 
-- Expose the Phase 3-4 services as MCP tools with explicit schemas: `get_cashflow`,
-  `detect_recurring_expenses`, `calculate_saving_capacity`, `simulate_goal`,
-  `calculate_goal_gap`, `compare_goal_paths`
-- Tools stay thin: schema plus a call into the same pure function the HTTP route uses
-  (ADR-0004), so there is nothing to keep in sync beyond the schema
-- Contract tests asserting the tool schemas and the service signatures agree
+- Nine tools over the existing services: `get_accounts`, `get_transactions`,
+  `get_cashflow`, `detect_recurring_expenses`, `calculate_saving_capacity`, `list_goals`,
+  `simulate_goal`, `calculate_goal_gap`, `compare_goal_paths`
+- Registration is mechanical - schemas from type hints, descriptions from docstrings - so
+  nothing about a tool is written twice
+- Contract tests asserting every tool returns what the HTTP route returns, on real data
+- Runs standalone over stdio: `python -m compass_api.mcp_server`
+- ADR-0011
 
 ## Phase 6 - Agent layer
 

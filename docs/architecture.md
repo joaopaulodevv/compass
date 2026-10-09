@@ -62,7 +62,7 @@ flowchart TB
 
     api --> agent["LangGraph agent\n(Future)"]
 
-    agent -->|MCP| tools["Financial MCP tools\n(Future)"]
+    agent -->|MCP| tools["Financial MCP tools\n(Implemented)"]
     agent -->|retrieval| rag["Knowledge base / RAG\n(Future)"]
 
     tools --> services["Financial engine\ndeterministic calculations\n(Implemented)"]
@@ -119,9 +119,9 @@ In the code today:
   they read rows through repositories and hand them to the engine. Routes orchestrate
   nothing.
 - `repositories/` owns all SQL and contains no financial rules.
-- An MCP tool for `get_cashflow` will be a schema plus a call into the same pure
-  function. If a tool body grows a financial rule, that rule is in the wrong place
-  (ADR-0004).
+- `mcp_server/tools.py` is the MCP adapter: parse, open a session, call a service,
+  serialise. It holds no financial rule, and contract tests assert each tool answers
+  exactly what the matching HTTP route answers (ADR-0011).
 
 Repositories and services exist because there is now logic and SQL to hold. Phase 1
 deliberately had neither: a repository wrapping a single `SELECT 1` would have been
@@ -347,6 +347,19 @@ identifiers only - never amounts, descriptions or merchants.
 | `GET /goals/{id}/forecast` | Simulation, gap and progress, computed now | Yes                |
 | `POST /goals/{id}/comparison` | Compare contribution and return scenarios | Yes             |
 | `POST /goals/simulate`     | "Could I?" - nothing persisted           | Yes                  |
+
+### MCP surface
+
+The same services are exposed as nine MCP tools for an agent to call -
+`get_accounts`, `get_transactions`, `get_cashflow`, `detect_recurring_expenses`,
+`calculate_saving_capacity`, `list_goals`, `simulate_goal`, `calculate_goal_gap`,
+`compare_goal_paths`. The server runs standalone over stdio
+(`python -m compass_api.mcp_server`), takes the acting user as an explicit argument on
+every tool, and tells the model in its instructions not to do arithmetic of its own.
+
+Tool schemas come from the type hints and descriptions from the docstrings, so a tool
+cannot drift from what it claims. See
+[ADR-0011](adr/0011-mcp-tools-as-a-second-transport.md).
 
 Keeping liveness and readiness separate means a database blip withholds traffic without
 causing an orchestrator to restart otherwise healthy processes. Probes require no user: an
