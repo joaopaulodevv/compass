@@ -87,14 +87,23 @@ with the suitability rules in Phase 8, where something finally reads it.
 - Runs standalone over stdio: `python -m compass_api.mcp_server`
 - ADR-0011
 
-## Phase 6 - Agent layer
+## Phase 6 - Agent layer (done)
 
-- LangGraph conversation graph with tool calling
-- Internal LLM provider interface; OpenAI as the first implementation
-- Tests with mocked LLM calls - no network in the test suite
-- ADR: agent topology and provider abstraction
+- LangGraph conversation graph: the model thinks, tools run, results go back, bounded by
+  a tool budget that ends in words rather than silence
+- An LLM interface Compass owns (`agent/llm/base.py`) with an OpenAI adapter and a
+  scripted provider for tests - the suite makes no network call and needs no API key
+- The agent calls the MCP server, so its capabilities are exactly the MCP tools
+- `user_id` stripped from every schema the model sees and injected server-side: a model
+  cannot pass an argument it was never offered
+- Conversations and messages persisted, with the tool calls that produced each answer
+- `POST /conversations`, `GET /conversations`,
+  `POST /conversations/{id}/messages`, `GET /conversations/{id}/messages`
+- Without `OPENAI_API_KEY` the conversational endpoints answer 503 and everything else
+  keeps working
+- ADR-0012
 
-## Phase 7 - Knowledge base and RAG
+## Phase 7 - Knowledge base and RAG (next)
 
 - Source curation and an ingestion pipeline with provenance metadata
   (`source`, `institution`, `product`, `category`, `retrieved_at`, `valid_from`, `url`)

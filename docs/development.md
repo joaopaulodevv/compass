@@ -200,7 +200,37 @@ Adding a tool is adding a function to `FINANCIAL_TOOLS` in
 `apps/api/src/compass_api/mcp_server/tools.py`: the schema comes from the type hints and
 the description from the docstring.
 
-## 7. Tests
+## 7. Talking to the assistant
+
+The conversational endpoints need an LLM. Without `OPENAI_API_KEY` they answer `503` and
+everything else keeps working - that is deliberate, not a failure.
+
+```bash
+export OPENAI_API_KEY=sk-...      # or put it in .env
+# optional: OPENAI_MODEL=gpt-4o-mini is the default
+
+CONV=$(curl -s -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{}' localhost:8000/conversations | jq -r .id)
+
+curl -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"content": "quanto consigo guardar por mes?"}' \
+  "localhost:8000/conversations/$CONV/messages"
+
+curl -H "X-User-Id: $USER" "localhost:8000/conversations/$CONV/messages"
+```
+
+The assistant's reply carries `tool_calls`: which tools produced its numbers. Every
+figure it states should be traceable there - if one is not, the model computed it and that
+is a bug in the prompt or the tools, not a rounding difference.
+
+The agent calls the MCP tools, and `user_id` is injected server-side: the model never sees
+that argument, so it cannot be redirected at another user's data.
+
+**The test suite never calls a model.** `ScriptedLLM` replays queued responses, which is
+what makes the agent's behaviour - tools offered, results fed back, budget respected -
+testable at all.
+
+## 8. Tests
 
 ```bash
 make test                 # full suite with coverage
@@ -232,7 +262,7 @@ substitute for reading what is actually covered. Note one artefact: a few lines 
 immediately after an `await` inside the test client's worker thread are not traced, so
 they show as uncovered even though the tests exercise them.
 
-## 8. Code quality
+## 9. Code quality
 
 ```bash
 make lint        # ruff check
@@ -251,7 +281,7 @@ versions pinned in `apps/api/uv.lock`. Invoke pre-commit from the repository roo
 (`make hooks`, or `uv run --project apps/api pre-commit ...`): with `--directory` the
 working directory changes and pre-commit's path filters stop matching.
 
-## 9. Database migrations
+## 10. Database migrations
 
 ```bash
 make migrate                                   # upgrade head
@@ -277,7 +307,7 @@ Alembic takes the connection URL from application settings (`migrations/env.py`)
 migrations and the running application can never target different databases, and no
 connection string is ever committed.
 
-## 10. Environment variables
+## 11. Environment variables
 
 | Variable              | Required | Default                  | Purpose                              |
 | --------------------- | -------- | ------------------------ | ------------------------------------ |
@@ -287,7 +317,8 @@ connection string is ever committed.
 | `DATABASE_ECHO`       | no       | `false`                  | Log every SQL statement               |
 | `REDIS_URL`           | no       | `redis://localhost:6379/0` | Reserved; no consumer yet           |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | no | `compass` | Consumed by the Compose `postgres` service |
-| `OPENAI_API_KEY`      | no       | unset                    | Future agent layer                    |
+| `OPENAI_API_KEY`      | no       | unset                    | The assistant. Absent, its endpoints answer 503 |
+| `OPENAI_MODEL`        | no       | `gpt-4o-mini`            | Which model the assistant uses        |
 | `PINECONE_API_KEY`    | no       | unset                    | Future RAG                            |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | no | unset | Future agent observability     |
 | `DATADOG_API_KEY`     | no       | unset                    | Future app observability              |
@@ -295,7 +326,7 @@ connection string is ever committed.
 `DATABASE_URL` is the only required variable: the API cannot do anything useful without
 it, and a missing future credential must never stop the service from starting.
 
-## 11. Repository layout
+## 12. Repository layout
 
 ```
 compass/
@@ -308,6 +339,7 @@ compass/
 │   │   │   ├── domain/       # Money rules, provider-neutral snapshots
 │   │   │   ├── providers/    # Open Finance adapters (+ sandbox fixture)
 │   │   │   ├── repositories/ # All SQL lives here
+│   │   │   ├── agent/       # LLM interface, graph, prompt, toolbox
 │   │   │   ├── mcp_server/   # MCP adapter over the same services
 │   │   │   ├── services/     # Business rules (ingestion today)
 │   │   │   ├── migrations/   # Alembic environment and revisions
@@ -322,7 +354,7 @@ compass/
 └── Makefile
 ```
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'compass_api'`** - the project is not installed
 in the virtualenv: `uv sync --directory apps/api --all-groups`.
@@ -352,6 +384,9 @@ the sync call first, and check you are sending the same `X-User-Id`.
 **A transaction has an unexpected category** - read its `category_rule` on
 `GET /transactions`. It names the rule that fired, so the fix is either a rule in
 `services/categorization.py` or nothing at all.
+
+**`503` from a `/conversations` endpoint** - `OPENAI_API_KEY` is not set. The financial
+API does not need it; only the assistant does.
 
 **A goal forecast says `monthly_contribution: "0.00"`** - the measured capacity is zero
 because there is no ingested history, or no whole month in it. Run the sync, or pass

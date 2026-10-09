@@ -19,6 +19,7 @@ intentions.
 | [0009](0009-internal-movements-are-not-cash-flow.md)             | Internal movements are excluded from income and expenses | Accepted |
 | [0010](0010-goals-store-terms-not-projections.md)                | A goal stores its terms; every projection is computed | Accepted |
 | [0011](0011-mcp-tools-as-a-second-transport.md)                  | MCP is a second transport over the same services | Accepted |
+| [0012](0012-agent-orchestrates-tools-never-computes.md)          | The agent orchestrates tools behind a provider interface it owns | Accepted |
 
 ## Not yet decided
 
@@ -29,7 +30,6 @@ They live in [../roadmap.md](../roadmap.md) until there is enough information to
   the vendor is not
 - Vector store (Pinecone vs `pgvector`)
 - Observability vendors (Langfuse, Datadog) and their integration points
-- Agent topology and conversation memory
 - Whether expense categorisation stays rule-based or gains a model. The rules are in
   place and measurable; ADR-0008 and ADR-0009 depend on them staying deterministic
 

@@ -3,7 +3,7 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phases 1-5 of 11 complete.** Financial data flows in from an Open
+> **Project status: Phases 1-6 of 11 complete.** Financial data flows in from an Open
 > Finance abstraction into PostgreSQL, and a deterministic engine turns it into cash
 > flow, categorised spending, recurring commitments and a sustainable saving capacity -
 > against a local sandbox fixture, not a real provider. Goals can be set and simulated
@@ -52,7 +52,7 @@ everything else.
 flowchart TB
     web["Next.js frontend\n(Future)"] --> api
     api["FastAPI application API\n(foundation implemented)"]
-    api --> agent["LangGraph agent\n(Future)"]
+    api --> agent["LangGraph agent\n(Implemented)"]
     agent -->|MCP| tools["Financial tools\n(Implemented)"]
     agent -->|retrieval| rag["Knowledge base\n(Future)"]
     tools --> services["Financial services\ndeterministic\n(Future)"]
@@ -127,14 +127,24 @@ Full detail, including the layering rules and the request flow for a goal simula
 - Schemas from type hints, descriptions from docstrings - a tool cannot drift from what
   it claims to do
 - Runs standalone over stdio for any MCP client
-- 255 tests (unit + integration), coverage reporting, eleven ADRs
 
-**Planned next** - the agent layer: a LangGraph conversation that reaches the engine
-through those tools, behind an LLM provider interface, with mocked model calls in the
-tests. See [Phase 6](docs/roadmap.md#phase-6---agent-layer).
+*Agent (Phase 6)*
 
-**Not implemented** - a real Open Finance provider, LangGraph agent, LLM calls, vector
-store, RAG ingestion, Langfuse, Datadog, authentication, recommendations, frontend.
+- LangGraph conversation: the model chooses tools, the engine computes, the model explains
+- An LLM interface Compass owns, with an OpenAI adapter and a scripted provider - the test
+  suite makes no network call and needs no API key
+- `user_id` is stripped from every tool schema the model sees and injected server-side, so
+  a crafted question cannot redirect a tool at another user's data
+- Conversations persisted with the tool calls behind each answer, so a figure can be
+  traced after the fact
+- 298 tests (unit + integration), coverage reporting, twelve ADRs
+
+**Planned next** - the knowledge base: curated financial sources with provenance and
+dates, retrieved so product claims are cited rather than recalled. See
+[Phase 7](docs/roadmap.md#phase-7---knowledge-base-and-rag-next).
+
+**Not implemented** - a real Open Finance provider, vector store, RAG ingestion,
+Langfuse, Datadog, authentication, recommendations, frontend.
 
 Redis runs in the local stack but **nothing consumes it yet**; it is infrastructure
 prepared for caching, background jobs and rate limiting. No client library is installed,
@@ -152,7 +162,7 @@ because inventing a use case to justify a dependency is worse than an idle conta
 | Quality          | ruff, mypy (strict), pytest, pre-commit     | Implemented             |
 | CI               | GitHub Actions                              | Implemented             |
 | Local infra      | Docker Compose                              | Implemented             |
-| Agent            | LangGraph, provider-agnostic LLM interface (OpenAI first) | Future    |
+| Agent            | LangGraph, own LLM interface, OpenAI adapter | Implemented             |
 | Tooling protocol | MCP (`mcp` SDK, stdio server)               | Implemented             |
 | Financial data (real) | A vendor adapter behind the same protocol | Future              |
 | Knowledge base   | RAG, Pinecone intended (undecided)          | Future                  |
@@ -248,6 +258,8 @@ compass/
 │   │   │   ├── domain/           # Money rules, provider-neutral snapshots
 │   │   │   ├── providers/        # Open Finance adapters + sandbox fixture
 │   │   │   ├── repositories/     # All SQL lives here
+│   │   │   ├── agent/            # LLM interface, graph, prompt, toolbox
+│   │   │   ├── mcp_server/       # MCP adapter over the same services
 │   │   │   ├── services/         # Ingestion, categorisation, the pure engine
 │   │   │   ├── migrations/       # Alembic environment and revisions
 │   │   │   ├── seed.py           # Local demo user
@@ -285,6 +297,7 @@ compass/
 | [0009](docs/adr/0009-internal-movements-are-not-cash-flow.md) | Internal movements are excluded from income and expenses |
 | [0010](docs/adr/0010-goals-store-terms-not-projections.md) | A goal stores its terms; every projection is computed |
 | [0011](docs/adr/0011-mcp-tools-as-a-second-transport.md) | MCP is a second transport over the same services |
+| [0012](docs/adr/0012-agent-orchestrates-tools-never-computes.md) | The agent orchestrates tools behind a provider interface it owns |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the

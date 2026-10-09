@@ -17,7 +17,9 @@ from an Open Finance provider through an abstraction Compass owns, is stored
 idempotently, and can be read back over HTTP. Phase 3 added the engine that turns it
 into numbers - cash flow, categorised spending, recurring commitments, saving capacity -
 all computed on request and never stored. Phase 4 added goals: the terms are stored, the
-projections are not.
+projections are not. Phase 5 exposed everything as MCP tools, and Phase 6 put a LangGraph
+agent in front of them - it decides which tools to call and explains what comes back,
+without ever computing a number itself.
 
 ```mermaid
 flowchart LR
@@ -60,7 +62,7 @@ flowchart TB
 
     api["FastAPI application API\n(Implemented: foundation + financial reads)"]
 
-    api --> agent["LangGraph agent\n(Future)"]
+    api --> agent["LangGraph agent\n(Implemented)"]
 
     agent -->|MCP| tools["Financial MCP tools\n(Implemented)"]
     agent -->|retrieval| rag["Knowledge base / RAG\n(Future)"]
@@ -246,6 +248,10 @@ erDiagram
     Product ||--o{ Recommendation : referenced_by
 ```
 
+`conversations` and `conversation_messages` arrived in Phase 6. An assistant message
+stores the tool calls that produced it and the model that wrote it; the system prompt is
+rebuilt each turn rather than stored, so improving it improves every future answer.
+
 `financial_goals` was added in Phase 4 and stores only terms - target amount, optional
 target date, what was already set aside, the planned contribution, status. No projection
 is stored, so none can go stale ([ADR-0010](adr/0010-goals-store-terms-not-projections.md)).
@@ -347,6 +353,9 @@ identifiers only - never amounts, descriptions or merchants.
 | `GET /goals/{id}/forecast` | Simulation, gap and progress, computed now | Yes                |
 | `POST /goals/{id}/comparison` | Compare contribution and return scenarios | Yes             |
 | `POST /goals/simulate`     | "Could I?" - nothing persisted           | Yes                  |
+| `POST /conversations`, `GET /conversations` | Chat threads            | Yes                  |
+| `POST /conversations/{id}/messages` | Ask the assistant               | Yes                  |
+| `GET /conversations/{id}/messages`  | Read a thread                   | Yes                  |
 
 ### MCP surface
 
@@ -389,6 +398,30 @@ The expected return is always the caller's assumption, defaulting to zero. Compa
 not know what any product pays; the knowledge base that could say so, with a source and a
 date, is a later phase. Inventing a rate here would put an unsourced number inside every
 projection, which is exactly what ADR-0005 exists to prevent.
+
+### The assistant
+
+`POST /conversations/{id}/messages` runs one turn: the model thinks, the tools it asked
+for run, their results go back to it, and it answers. The loop is bounded, and when the
+budget runs out the model is asked once more with no tools offered - which forces a
+sentence instead of silence.
+
+Three properties are worth knowing, and all three are structural rather than prompted:
+
+- **The model cannot reach another user's data.** `user_id` is removed from every tool
+  schema it sees and injected server-side. An argument that is never offered cannot be
+  passed, so neither a crafted question nor text planted in a transaction description can
+  redirect a tool.
+- **The model's capabilities are exactly the MCP tools.** The agent calls the MCP server;
+  there is no second list to keep in sync.
+- **Every answer records the tool calls behind it.** ADR-0005 promises each number traces
+  to a tool call; `conversation_messages.tool_calls` is where that is checked.
+
+Compass depends on its own LLM interface (`agent/llm/base.py`), not on a vendor SDK. The
+OpenAI adapter is the only file that knows OpenAI exists, and a scripted provider makes
+the test suite run with no network and no API key. Without `OPENAI_API_KEY` the
+conversational endpoints answer `503` and the rest of the API is unaffected. See
+[ADR-0012](adr/0012-agent-orchestrates-tools-never-computes.md).
 
 ### What counts as income and expense
 
