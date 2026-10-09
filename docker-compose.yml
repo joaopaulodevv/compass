@@ -1,0 +1,67 @@
+# Local development stack: API + PostgreSQL + Redis.
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose up
+#
+# Secrets are never baked into this file or the image; everything comes from `.env`.
+
+name: compass
+
+services:
+  api:
+    build:
+      context: ./apps/api
+    env_file: .env
+    environment:
+      # Service names override the host-oriented values in `.env`.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compass}:${POSTGRES_PASSWORD:-compass}@postgres:5432/${POSTGRES_DB:-compass}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      # Source is mounted for hot reload; the image itself is self-contained.
+      - ./apps/api/src:/app/src
+    # Applying migrations on start is a development convenience. In a real deployment
+    # migrations run as a separate, explicit step before the new version serves traffic.
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && uvicorn compass_api.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compass}
+      POSTGRES_DB: ${POSTGRES_DB:-compass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compass} -d ${POSTGRES_DB:-compass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Infrastructure prepared for future use (caching, background jobs, rate limiting).
+  # Nothing in the application depends on Redis yet - see docs/architecture.md.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
