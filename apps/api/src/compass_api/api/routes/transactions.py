@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from compass_api.api.deps import CurrentUserId, SessionDep
 from compass_api.db.models import Transaction
+from compass_api.domain.categories import ExpenseCategory
 from compass_api.domain.money import Direction
 from compass_api.repositories.transactions import TransactionRepository
 
@@ -39,7 +40,12 @@ class TransactionResponse(BaseModel):
     direction: Direction
     description: str
     merchant_name: str | None
+    #: The provider's own label, kept verbatim.
     provider_category: str | None
+    #: Compass's category, assigned by the deterministic rule engine, and the rule that
+    #: produced it - so a surprising label can be traced to its cause.
+    category: ExpenseCategory
+    category_rule: str | None
 
     @classmethod
     def of(cls, transaction: Transaction) -> TransactionResponse:
