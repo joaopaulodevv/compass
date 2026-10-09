@@ -56,17 +56,34 @@ Deliberately still absent: provider SDKs, authentication, any calculation.
 - The engine is pure: no I/O, so every number is tested against hand-worked values with
   no database in the loop - ADR-0008
 
-## Phase 4 - Goals and simulation (next)
+## Phase 4 - Goals and simulation (done)
 
-- `FinancialGoal`, `FinancialProfile` models
-- Goal simulation, goal gap, path comparison, progress reforecast
-- Endpoints for creating and simulating goals
+- `FinancialGoal`: only the terms are stored - target, optional date, what is already set
+  aside, the planned contribution, status. Every projection is computed on request, so a
+  stale forecast cannot be served (ADR-0010)
+- Goal simulation, required contribution, gap against the target date, path comparison
+  and progress against the straight line to the deadline - all in a pure engine
+- A forecast falls back from an explicit contribution, to the goal's own plan, to the
+  saving capacity measured in Phase 3 - and reports which it used
+- `POST /goals/simulate` answers "could I?" with nothing persisted
+- Expected returns are always the caller's assumption, converted from an effective annual
+  rate properly rather than divided by twelve
+- `POST /goals`, `GET /goals`, `GET /goals/{id}`, `PATCH /goals/{id}`,
+  `GET /goals/{id}/forecast`, `POST /goals/{id}/comparison`
 
-## Phase 5 - MCP tool layer
+`FinancialProfile` was **not** created. A table of self-declared attributes with no
+consumer would be premature: what the agent will actually need - saving capacity,
+recurring commitments, cash-flow shape - is already computed from real data. It belongs
+with the suitability rules in Phase 8, where something finally reads it.
 
-- Expose Phase 3-4 services as MCP tools with explicit schemas
-- Tools stay thin: schema plus a service call (see ADR-0004)
-- Contract tests asserting tools and HTTP endpoints agree
+## Phase 5 - MCP tool layer (next)
+
+- Expose the Phase 3-4 services as MCP tools with explicit schemas: `get_cashflow`,
+  `detect_recurring_expenses`, `calculate_saving_capacity`, `simulate_goal`,
+  `calculate_goal_gap`, `compare_goal_paths`
+- Tools stay thin: schema plus a call into the same pure function the HTTP route uses
+  (ADR-0004), so there is nothing to keep in sync beyond the schema
+- Contract tests asserting the tool schemas and the service signatures agree
 
 ## Phase 6 - Agent layer
 

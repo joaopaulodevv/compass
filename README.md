@@ -3,11 +3,12 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phases 1-3 of 11 complete.** Financial data flows in from an Open
+> **Project status: Phases 1-4 of 11 complete.** Financial data flows in from an Open
 > Finance abstraction into PostgreSQL, and a deterministic engine turns it into cash
 > flow, categorised spending, recurring commitments and a sustainable saving capacity -
-> against a local sandbox fixture, not a real provider. The goal simulation, the agent,
-> the knowledge base and the frontend are **not implemented yet**. This README
+> against a local sandbox fixture, not a real provider. Goals can be set and simulated
+> against that measured capacity. The agent, the knowledge base and the frontend are
+> **not implemented yet**. This README
 > distinguishes throughout between what exists and what is planned - see the
 > [roadmap](docs/roadmap.md).
 
@@ -106,11 +107,23 @@ Full detail, including the layering rules and the request flow for a goal simula
 - Sustainable saving capacity: the median monthly net over whole calendar months, so one
   bonus month cannot become a monthly promise
 - `GET /insights/cashflow`, `/insights/recurring-expenses`, `/insights/saving-capacity`
-- 166 tests (unit + integration), coverage reporting, nine ADRs
 
-**Planned next** - financial goals and simulation: how long a target takes at the
-measured saving capacity, the gap when a deadline is fixed, and comparison of paths. See
-[Phase 4](docs/roadmap.md#phase-4---goals-and-simulation-next).
+*Goals and simulation (Phase 4)*
+
+- Goals store only their terms; every projection is computed on request, so a forecast is
+  never stale (ADR-0010)
+- Simulation, required contribution, gap against a deadline, path comparison, and
+  progress against the straight line to the target date
+- A forecast falls back from an explicit figure, to the goal's plan, to the **saving
+  capacity measured from the user's own history** - and says which it used
+- `POST /goals/simulate` answers "could I?" with nothing persisted
+- Expected returns are always the caller's assumption - Compass does not yet know what
+  any product pays, and will not invent a rate
+- 231 tests (unit + integration), coverage reporting, ten ADRs
+
+**Planned next** - the MCP tool layer: the same pure functions exposed as tools for the
+future agent, with contract tests asserting the schemas and the services agree. See
+[Phase 5](docs/roadmap.md#phase-5---mcp-tool-layer-next).
 
 **Not implemented** - a real Open Finance provider, financial calculations, MCP tools,
 LangGraph agent, LLM calls, vector store, RAG ingestion, Langfuse, Datadog,
@@ -167,6 +180,12 @@ curl -H "X-User-Id: $USER" 'localhost:8000/transactions?limit=5'
 curl -H "X-User-Id: $USER" localhost:8000/insights/cashflow
 curl -H "X-User-Id: $USER" localhost:8000/insights/recurring-expenses
 curl -H "X-User-Id: $USER" localhost:8000/insights/saving-capacity
+
+# "I want R$20,000 for a trip in 18 months" - answered against the measured capacity,
+# with nothing created:
+curl -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"target_amount": "20000.00", "target_date": "2028-04-15"}' \
+  localhost:8000/goals/simulate
 ```
 
 `X-User-Id` is a temporary stand-in for authentication; every financial query is already
@@ -198,7 +217,7 @@ make test-unit   # no infrastructure required
 make check       # lint + types + tests (what CI runs)
 ```
 
-166 tests. The engine's tests need no infrastructure at all - they are hand-written
+231 tests. The engine's tests need no infrastructure at all - they are hand-written
 movements with expected values worked out by hand, which is the only way to be confident
 the arithmetic is right rather than merely stable. Unit tests construct settings
 explicitly and need no infrastructure.
@@ -222,7 +241,7 @@ compass/
 │   │   │   ├── domain/           # Money rules, provider-neutral snapshots
 │   │   │   ├── providers/        # Open Finance adapters + sandbox fixture
 │   │   │   ├── repositories/     # All SQL lives here
-│   │   │   ├── services/         # Business rules (ingestion today)
+│   │   │   ├── services/         # Ingestion, categorisation, the pure engine
 │   │   │   ├── migrations/       # Alembic environment and revisions
 │   │   │   ├── seed.py           # Local demo user
 │   │   │   └── main.py           # Application factory
@@ -257,6 +276,7 @@ compass/
 | [0007](docs/adr/0007-money-as-signed-decimals.md) | Money is a signed decimal, everywhere |
 | [0008](docs/adr/0008-pure-financial-engine.md) | The financial engine is pure Python over fetched rows |
 | [0009](docs/adr/0009-internal-movements-are-not-cash-flow.md) | Internal movements are excluded from income and expenses |
+| [0010](docs/adr/0010-goals-store-terms-not-projections.md) | A goal stores its terms; every projection is computed |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the

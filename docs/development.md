@@ -145,6 +145,44 @@ Things worth knowing:
   zero. `months_considered: 0` means there is not enough history to answer - not that
   the capacity is zero.
 
+### Goals
+
+```bash
+# "Could I?" - runs the engine and persists nothing.
+curl -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"target_amount": "20000.00", "target_date": "2028-04-15"}' \
+  localhost:8000/goals/simulate
+
+# Create one, then ask for a forecast whenever you like.
+GOAL=$(curl -s -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"name": "Viagem", "target_amount": "20000.00", "target_date": "2028-04-15",
+       "monthly_contribution": "900.00"}' localhost:8000/goals | jq -r .id)
+
+curl -H "X-User-Id: $USER" "localhost:8000/goals/$GOAL/forecast"
+curl -H "X-User-Id: $USER" "localhost:8000/goals/$GOAL/forecast?annual_return_rate=0.11"
+
+# Record progress; reaching the target marks the goal achieved.
+curl -X PATCH -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"current_amount": "4500.00"}' "localhost:8000/goals/$GOAL"
+
+curl -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"options": [{"label": "plano", "monthly_contribution": "900.00"},
+                   {"label": "com rendimento", "monthly_contribution": "900.00",
+                    "annual_return_rate": "0.11"}]}' \
+  "localhost:8000/goals/$GOAL/comparison"
+```
+
+Worth knowing:
+
+- **Nothing about a goal is precomputed.** The forecast is derived every time, so it
+  always reflects today's balance, today's date and today's measured capacity.
+- **A forecast says where its contribution came from** (`requested`, `goal_plan` or
+  `measured_capacity`). Without a plan of their own, the user is told what their own
+  history supports.
+- **The return rate is yours, not Compass's.** It defaults to zero - saving without
+  growth - and Compass will not guess one until the knowledge base can supply a sourced,
+  dated figure.
+
 ## 6. Tests
 
 ```bash
@@ -296,3 +334,11 @@ the sync call first, and check you are sending the same `X-User-Id`.
 **A transaction has an unexpected category** - read its `category_rule` on
 `GET /transactions`. It names the rule that fired, so the fix is either a rule in
 `services/categorization.py` or nothing at all.
+
+**A goal forecast says `monthly_contribution: "0.00"`** - the measured capacity is zero
+because there is no ingested history, or no whole month in it. Run the sync, or pass
+`?monthly_contribution=`.
+
+**The demo user has no data after running the tests** - the integration suite deletes the
+demo user on purpose, to cover the seed's insert path deterministically, and that
+cascades to its accounts and transactions. Run `make seed` and the sync again.

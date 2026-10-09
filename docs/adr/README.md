@@ -17,6 +17,7 @@ intentions.
 | [0007](0007-money-as-signed-decimals.md)                         | Money is a signed decimal, everywhere            | Accepted |
 | [0008](0008-pure-financial-engine.md)                            | The financial engine is pure Python over fetched rows | Accepted |
 | [0009](0009-internal-movements-are-not-cash-flow.md)             | Internal movements are excluded from income and expenses | Accepted |
+| [0010](0010-goals-store-terms-not-projections.md)                | A goal stores its terms; every projection is computed | Accepted |
 
 ## Not yet decided
 

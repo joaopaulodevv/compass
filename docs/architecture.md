@@ -16,17 +16,18 @@ Phase 1 built the backend foundation. Phase 2 added the financial domain: data a
 from an Open Finance provider through an abstraction Compass owns, is stored
 idempotently, and can be read back over HTTP. Phase 3 added the engine that turns it
 into numbers - cash flow, categorised spending, recurring commitments, saving capacity -
-all computed on request and never stored.
+all computed on request and never stored. Phase 4 added goals: the terms are stored, the
+projections are not.
 
 ```mermaid
 flowchart LR
     client["HTTP client\n(curl, Swagger UI)"] --> api
 
     subgraph app["FastAPI application (apps/api) - Implemented"]
-        api["API layer\n/health /ready\n/open-finance/sync\n/accounts /transactions\n/insights/*"]
+        api["API layer\n/health /ready\n/open-finance/sync\n/accounts /transactions\n/insights/* /goals/*"]
         svc["Sync service\nidempotent ingestion\n+ categorisation"]
-        engine["Financial engine (pure)\ncashflow, recurring,\nsaving capacity"]
-        insights["Insights service\nreads rows, runs the engine"]
+        engine["Financial engine (pure)\ncashflow, recurring,\nsaving capacity, goals"]
+        insights["Insights + Goal services\nread rows, run the engine"]
         repo["Repositories\naccounts, transactions,\ninstitutions, users"]
         prov["Provider adapter\nMockOpenFinanceProvider"]
         api --> svc
@@ -111,11 +112,12 @@ In the code today:
 - `api/routes/open_finance.py` validates a window, calls `OpenFinanceSyncService`, maps
   the report to a response. It contains no rule about what a sync is.
 - `services/open_finance_sync.py` is the only place that knows what syncing a user means.
-- `services/cashflow.py`, `services/recurring.py` and `services/saving_capacity.py` are
-  **pure**: no session, no repository, no settings, no I/O at all. They take movements
-  and return numbers (ADR-0008).
-- `services/insights.py` is the only place that joins the two - it reads rows through the
-  repository and hands them to the engine. Routes orchestrate nothing.
+- `services/cashflow.py`, `services/recurring.py`, `services/saving_capacity.py` and
+  `services/goals_engine.py` are **pure**: no session, no repository, no settings, no I/O
+  at all. They take values and return numbers (ADR-0008).
+- `services/insights.py` and `services/goals.py` are the only places that join the two -
+  they read rows through repositories and hand them to the engine. Routes orchestrate
+  nothing.
 - `repositories/` owns all SQL and contains no financial rules.
 - An MCP tool for `get_cashflow` will be a schema plus a call into the same pure
   function. If a tool body grows a financial rule, that rule is in the wrong place
@@ -240,11 +242,18 @@ Planned next, when the calculations that use them exist:
 
 ```mermaid
 erDiagram
-    User ||--o{ FinancialGoal : sets
-    User ||--|| FinancialProfile : has
     User ||--o{ Recommendation : receives
     Product ||--o{ Recommendation : referenced_by
 ```
+
+`financial_goals` was added in Phase 4 and stores only terms - target amount, optional
+target date, what was already set aside, the planned contribution, status. No projection
+is stored, so none can go stale ([ADR-0010](adr/0010-goals-store-terms-not-projections.md)).
+
+`FinancialProfile` is deliberately absent. A table of self-declared attributes with no
+consumer would be premature; what the agent will need - saving capacity, recurring
+commitments, cash-flow shape - is already computed from real data. It belongs with the
+suitability rules, where something will finally read it.
 
 **Data isolation.** Authentication does not exist yet, but every financial table carries
 `user_id`, every repository method takes it, and every query filters on it. An account id
@@ -332,6 +341,12 @@ identifiers only - never amounts, descriptions or merchants.
 | `GET /insights/cashflow`   | Income, expenses, net, monthly series, categories | Yes            |
 | `GET /insights/recurring-expenses` | Monthly recurring charges        | Yes                  |
 | `GET /insights/saving-capacity` | Sustainable monthly saving            | Yes                  |
+| `POST /goals`              | Create a goal                            | Yes                  |
+| `GET /goals`, `GET /goals/{id}` | The user's goals                    | Yes                  |
+| `PATCH /goals/{id}`        | Update terms or record progress          | Yes                  |
+| `GET /goals/{id}/forecast` | Simulation, gap and progress, computed now | Yes                |
+| `POST /goals/{id}/comparison` | Compare contribution and return scenarios | Yes             |
+| `POST /goals/simulate`     | "Could I?" - nothing persisted           | Yes                  |
 
 Keeping liveness and readiness separate means a database blip withholds traffic without
 causing an orchestrator to restart otherwise healthy processes. Probes require no user: an
@@ -349,6 +364,18 @@ concrete use for the Redis already in the stack.
 Everything under `/insights` is **computed on request and never stored**. That is why
 those paths do not look like resources: there is no cash-flow row anywhere, only
 transactions and a pure function over them.
+
+### Where a forecast's numbers come from
+
+A goal forecast assumes a monthly contribution, and says where that figure came from:
+the caller's own request, the goal's plan, or the saving capacity measured from the
+user's history. The same answer means something different depending on which - so the
+API reports it rather than leaving the reader to guess.
+
+The expected return is always the caller's assumption, defaulting to zero. Compass does
+not know what any product pays; the knowledge base that could say so, with a source and a
+date, is a later phase. Inventing a rate here would put an unsourced number inside every
+projection, which is exactly what ADR-0005 exists to prevent.
 
 ### What counts as income and expense
 
