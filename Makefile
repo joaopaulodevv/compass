@@ -1,6 +1,10 @@
 # Developer entrypoints. Every target is runnable from the repository root.
 API := apps/api
+# Most tools need apps/api as their working directory (pytest, alembic, ruff, mypy).
 UV  := uv run --directory $(API)
+# pre-commit must keep the repository root as its working directory, otherwise the
+# file filters in .pre-commit-config.yaml never match.
+UVR := uv run --project $(API)
 
 .DEFAULT_GOAL := help
 
@@ -12,7 +16,7 @@ help: ## Show available targets
 
 install: ## Install Python dependencies and git hooks
 	uv sync --directory $(API) --all-groups
-	$(UV) pre-commit install
+	$(UVR) pre-commit install
 
 run: ## Run the API with hot reload (requires PostgreSQL)
 	$(UV) uvicorn compass_api.main:app --reload
@@ -50,4 +54,4 @@ logs: ## Tail the API logs
 	docker compose logs -f api
 
 hooks: ## Run pre-commit against all files
-	$(UV) pre-commit run --all-files
+	$(UVR) pre-commit run --all-files

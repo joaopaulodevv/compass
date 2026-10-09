@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.32"
+
+jobs:
+  quality:
+    name: Lint, format, types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --directory apps/api --all-groups --frozen
+
+      - name: Run pre-commit
+        # pre-commit runs from the repository root so its file filters apply.
+        run: uv run --project apps/api pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: compass
+          POSTGRES_PASSWORD: compass
+          POSTGRES_DB: compass_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U compass -d compass_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+asyncpg://compass:compass@localhost:5432/compass_test
+      TEST_DATABASE_URL: postgresql+asyncpg://compass:compass@localhost:5432/compass_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --directory apps/api --all-groups --frozen
+
+      - name: Apply migrations
+        run: uv run --directory apps/api alembic upgrade head
+
+      - name: Run tests
+        run: uv run --directory apps/api pytest --cov --cov-report=term-missing
+
+  commit-messages:
+    name: Conventional commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9 ./_-]+\))?!?: .+'
+          status=0
+          while IFS= read -r subject; do
+            [ -z "$subject" ] && continue
+            case "$subject" in
+              Merge*|Revert*) continue ;;
+            esac
+            if ! printf '%s' "$subject" | grep -Eq "$pattern"; then
+              echo "::error::Not a Conventional Commit: $subject"
+              status=1
+            fi
+          done <<< "$(git log --format=%s "$BASE_SHA..$HEAD_SHA")"
+          exit $status
+
+  docker:
+    name: Docker image and Compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Compose file
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          push: false
+          load: true
+          tags: compass-api:ci
+
+      - name: Smoke-test the image
+        run: |
+          docker run --rm --name compass-api-ci -d \
+            -e DATABASE_URL=postgresql+asyncpg://compass:compass@localhost:5432/compass \
+            -p 8000:8000 compass-api:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then ok=1; break; fi
+            sleep 1
+          done
+          docker logs compass-api-ci || true
+          docker stop compass-api-ci
+          test "${ok:-0}" = "1"
