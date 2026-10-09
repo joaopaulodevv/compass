@@ -13,11 +13,11 @@ from enum import StrEnum
 
 import pytest
 
-from compass_api.mcp_server import create_server
+from compass_api.mcp_server import ALL_TOOLS, create_server
 from compass_api.mcp_server.serialization import to_jsonable
-from compass_api.mcp_server.tools import FINANCIAL_TOOLS
 
-EXPECTED_TOOLS = {
+#: Tools that read the user's own data. Each must require the acting user.
+USER_SCOPED_TOOLS = {
     "get_accounts",
     "get_transactions",
     "get_cashflow",
@@ -29,12 +29,18 @@ EXPECTED_TOOLS = {
     "compare_goal_paths",
 }
 
+#: Tools over shared knowledge. The corpus is the same for everyone, so they take no
+#: identity - and must not, or a caller could be made to look like someone else.
+SHARED_TOOLS = {"search_financial_knowledge"}
+
+EXPECTED_TOOLS = USER_SCOPED_TOOLS | SHARED_TOOLS
+
 
 async def test_every_declared_tool_is_registered() -> None:
     tools = await create_server().list_tools()
 
     assert {tool.name for tool in tools} == EXPECTED_TOOLS
-    assert len(tools) == len(FINANCIAL_TOOLS)
+    assert len(tools) == len(ALL_TOOLS)
 
 
 async def test_every_tool_describes_itself() -> None:
@@ -43,10 +49,18 @@ async def test_every_tool_describes_itself() -> None:
         assert tool.description, f"{tool.name} has no description"
 
 
-async def test_every_tool_requires_the_acting_user() -> None:
+async def test_every_user_scoped_tool_requires_the_acting_user() -> None:
     """Authentication does not exist yet, so isolation depends on this argument."""
     for tool in await create_server().list_tools():
-        assert "user_id" in tool.input_schema["required"], tool.name
+        if tool.name in USER_SCOPED_TOOLS:
+            assert "user_id" in tool.input_schema["required"], tool.name
+
+
+async def test_shared_knowledge_tools_take_no_identity() -> None:
+    """Nothing user-specific is read, so asking for an identity would only invite one."""
+    for tool in await create_server().list_tools():
+        if tool.name in SHARED_TOOLS:
+            assert "user_id" not in tool.input_schema.get("properties", {}), tool.name
 
 
 async def test_schemas_come_from_the_type_hints() -> None:
@@ -70,6 +84,7 @@ async def test_server_instructs_the_agent_not_to_do_arithmetic() -> None:
 
     assert server.instructions is not None
     assert "Do not compute" in server.instructions
+    assert "cite what you use" in server.instructions
 
 
 # --- serialisation -------------------------------------------------------------------

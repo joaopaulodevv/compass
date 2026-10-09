@@ -8,6 +8,7 @@ from compass_api.api.routes import (
     goals,
     health,
     insights,
+    knowledge,
     open_finance,
     transactions,
 )
@@ -20,3 +21,4 @@ api_router.include_router(transactions.router)
 api_router.include_router(insights.router)
 api_router.include_router(goals.router)
 api_router.include_router(conversations.router)
+api_router.include_router(knowledge.router)

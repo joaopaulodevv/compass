@@ -67,6 +67,33 @@ async def test_the_model_is_never_offered_the_identity_argument() -> None:
     assert "since" in cashflow.input_schema["properties"]
 
 
+async def test_a_tool_that_takes_no_identity_is_called_without_one() -> None:
+    """Knowledge is shared; injecting an identity would be a type error, and offering one
+    would let the model smuggle one in."""
+    captured: dict[str, Any] = {}
+    server = MCPServer(name="shared")
+
+    @server.tool()
+    async def search_financial_knowledge(query: str) -> dict[str, Any]:
+        """Search shared knowledge."""
+        captured["query"] = query
+        return {"results": []}
+
+    toolbox = FinancialToolbox(server)
+    await toolbox.specs()
+    output = await toolbox.invoke(
+        ToolCall(
+            id="1",
+            name="search_financial_knowledge",
+            arguments={"query": "liquidez", "user_id": str(uuid.uuid4())},
+        ),
+        USER_ID,
+    )
+
+    assert captured["query"] == "liquidez"
+    assert "error" not in json.loads(output)
+
+
 async def test_the_identity_is_injected_on_every_call() -> None:
     server, captured = spy_server()
 

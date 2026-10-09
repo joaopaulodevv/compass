@@ -18,6 +18,7 @@ from mcp.server.mcpserver import MCPServer
 from compass_api import __version__
 from compass_api.core.config import get_settings
 from compass_api.core.logging import configure_logging
+from compass_api.mcp_server.knowledge_tools import KNOWLEDGE_TOOLS
 from compass_api.mcp_server.tools import FINANCIAL_TOOLS
 
 logger = logging.getLogger(__name__)
@@ -30,8 +31,14 @@ goal projections yourself: the tools are exact, reproducible and auditable, and 
 arithmetic mistake in financial guidance changes what someone does with their money.
 
 Amounts are strings holding exact decimals, and are signed - negative is money leaving
-the account. Every tool needs the acting user's id.
+the account. The tools that read a user's own data need the acting user's id.
+
+For how financial products and concepts work, search the knowledge base rather than
+answering from memory, and cite what you use. Product conditions change; your training
+data does not say when it was right.
 """
+
+ALL_TOOLS = (*FINANCIAL_TOOLS, *KNOWLEDGE_TOOLS)
 
 
 def create_server() -> MCPServer:
@@ -42,7 +49,7 @@ def create_server() -> MCPServer:
         instructions=INSTRUCTIONS.strip(),
         version=__version__,
     )
-    for tool in FINANCIAL_TOOLS:
+    for tool in ALL_TOOLS:
         server.tool()(tool)
     return server
 
@@ -51,5 +58,5 @@ def main() -> None:
     """Entry point for `python -m compass_api.mcp_server`."""
     configure_logging(get_settings())
     server = create_server()
-    logger.info("mcp server starting", extra={"tools": len(FINANCIAL_TOOLS)})
+    logger.info("mcp server starting", extra={"tools": len(ALL_TOOLS)})
     server.run(transport="stdio")

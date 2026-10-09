@@ -1,0 +1,53 @@
+{
+  "_notice": "Illustrative placeholder content for development. Not quoted from or attributed to any institution. See README.md in this directory.",
+  "documents": [
+    {
+      "id": "liquidity-basics",
+      "title": "Liquidez: o que significa e por que importa",
+      "category": "liquidity",
+      "retrieved_days_ago": 30,
+      "valid_from_days_ago": 60,
+      "text": "Liquidez e a facilidade com que um investimento pode ser convertido em dinheiro disponivel sem perda relevante de valor. Um investimento com liquidez diaria permite resgate no mesmo dia ou no dia util seguinte. Um investimento com carencia so permite resgate depois de um prazo definido, e resgatar antes pode significar vender a um preco pior ou simplesmente nao ser possivel.\n\nLiquidez e retorno normalmente se opoem. Quem aceita deixar o dinheiro parado por mais tempo tende a receber mais, porque esta assumindo o risco de precisar do dinheiro antes do prazo. Por isso a pergunta que define onde um valor deve ficar nao e quanto ele rende, mas quando ele vai ser usado.\n\nPara objetivos de curto prazo e para a reserva de emergencia, liquidez vem antes de rentabilidade. Um retorno maior nao compensa descobrir que o dinheiro nao esta disponivel no dia em que ele e necessario."
+    },
+    {
+      "id": "emergency-fund",
+      "title": "Reserva de emergencia: funcao e dimensionamento",
+      "category": "emergency_fund",
+      "retrieved_days_ago": 25,
+      "valid_from_days_ago": 90,
+      "text": "A reserva de emergencia existe para cobrir despesas inesperadas sem recorrer a credito caro nem desmontar investimentos de longo prazo em um momento ruim. Ela nao e um investimento para crescer: e um seguro contra a necessidade de vender outra coisa na pressa.\n\nO dimensionamento usual parte das despesas mensais, nao da renda: o que importa e quanto tempo a reserva sustenta a vida atual. Quanto mais instavel a renda, maior a reserva. Para quem tem renda previsivel e emprego estavel, algo entre tres e seis meses de despesas e a referencia mais citada; para renda variavel ou autonoma, de seis a doze meses.\n\nO lugar da reserva e definido por liquidez e baixo risco, nessa ordem. Ela deve estar acessivel em um dia util e nao deve oscilar de valor. Rendimento e a terceira prioridade, nao a primeira.\n\nUma reserva incompleta muda a prioridade de qualquer outro objetivo: enquanto ela nao existe, uma emergencia transforma qualquer meta em divida."
+    },
+    {
+      "id": "fixed-income-characteristics",
+      "title": "Renda fixa: caracteristicas que diferenciam os produtos",
+      "category": "fixed_income",
+      "retrieved_days_ago": 20,
+      "valid_from_days_ago": 120,
+      "text": "Em renda fixa, o investidor empresta dinheiro a um emissor e recebe de volta com remuneracao definida por uma regra conhecida desde o inicio. As diferencas entre produtos aparecem em quatro dimensoes: quem e o emissor, como a remuneracao e calculada, qual a liquidez e como a tributacao incide.\n\nQuanto a remuneracao, um titulo prefixado define a taxa no momento da compra; um pos-fixado acompanha um indexador, como a taxa basica de juros; um hibrido combina uma taxa fixa com a variacao da inflacao. Prefixado da previsibilidade nominal e expoe a mudancas de juros; pos-fixado acompanha o cenario e torna o resultado menos previsivel de antemao.\n\nQuanto ao emissor, o risco de credito e o risco de o emissor nao honrar o pagamento. Titulos publicos tem o risco do governo; titulos bancarios tem o risco do banco emissor, e parte deles conta com a garantia de um fundo garantidor, dentro de limites por instituicao e por investidor.\n\nQuanto a liquidez, produtos com liquidez diaria convivem com produtos com carencia ou com vencimento, em que a saida antecipada depende de mercado secundario e pode gerar perda.\n\nComparar apenas a taxa anunciada entre produtos com liquidez, emissor e tributacao diferentes leva a conclusao errada. A comparacao util e entre produtos adequados ao mesmo objetivo e ao mesmo prazo."
+    },
+    {
+      "id": "risk-types",
+      "title": "Tipos de risco em investimentos",
+      "category": "risk",
+      "retrieved_days_ago": 35,
+      "valid_from_days_ago": 150,
+      "text": "Risco em investimentos nao e uma unica coisa. Risco de credito e a possibilidade de o emissor nao pagar. Risco de mercado e a oscilacao de preco antes do vencimento, que importa para quem pode precisar vender antes. Risco de liquidez e nao conseguir transformar o investimento em dinheiro quando necessario, ou conseguir apenas com desconto.\n\nHa tambem o risco de inflacao: um retorno nominal positivo pode significar perda de poder de compra se ficar abaixo da inflacao do periodo. Para objetivos longos, esse e frequentemente o risco mais relevante e o menos percebido.\n\nPrazo e risco interagem. O mesmo titulo pode ser conservador para quem vai carrega-lo ate o vencimento e arriscado para quem talvez precise vende-lo em seis meses. Por isso o horizonte do objetivo e parte da avaliacao de risco, e nao um detalhe posterior."
+    },
+    {
+      "id": "goal-planning",
+      "title": "Planejamento por objetivo: prazo define o instrumento",
+      "category": "planning",
+      "retrieved_days_ago": 15,
+      "valid_from_days_ago": 45,
+      "text": "Planejar por objetivo significa definir, para cada meta, tres coisas: quanto, quando, e o que acontece se o prazo nao for cumprido. Um objetivo sem data nao e planejavel, apenas desejavel.\n\nO prazo define o instrumento. Para metas de curto prazo, de ate dois anos, liquidez e previsibilidade importam mais do que retorno, porque nao ha tempo para recuperar uma oscilacao. Para metas longas, a capacidade de atravessar oscilacoes aumenta, e o risco de ficar abaixo da inflacao passa a pesar mais do que a volatilidade.\n\nA capacidade de aporte vem do fluxo de caixa, nao da intencao. Uma meta cujo aporte necessario excede o que sobra todos os meses nao e uma meta ambiciosa: e uma meta que vai falhar, e e melhor descobrir isso no inicio, ajustando valor ou prazo.\n\nQuando uma meta nao cabe no orcamento, as alternativas sao concretas: estender o prazo, reduzir o valor, aumentar a renda, reduzir despesas recorrentes, ou aceitar mais risco com consciencia de que isso pode piorar o resultado."
+    },
+    {
+      "id": "suitability",
+      "title": "Adequacao: por que a mesma recomendacao nao serve para todos",
+      "category": "suitability",
+      "retrieved_days_ago": 900,
+      "valid_from_days_ago": 1200,
+      "text": "Adequacao e a ideia de que um produto deve corresponder a situacao de quem investe, e nao apenas ser bom em abstrato. Tres elementos costumam ser considerados: o objetivo e seu prazo, a situacao financeira, e o conhecimento e a tolerancia a risco de quem decide.\n\nO mesmo produto pode ser adequado para um objetivo e inadequado para outro da mesma pessoa. Um titulo longo pode servir para a aposentadoria e ser impróprio para a reserva de emergencia, que precisa de liquidez imediata.\n\nA ordem tambem importa. Antes de escolher onde investir, costuma fazer sentido verificar se existe reserva de emergencia, se ha dividas caras em aberto e se o fluxo de caixa mensal e positivo de forma sustentavel. Uma divida de cartao em aberto normalmente custa mais do que qualquer aplicacao conservadora rende.\n\nEste documento e intencionalmente antigo no corpus de desenvolvimento, para que o caminho de conteudo desatualizado seja exercitado de ponta a ponta."
+    }
+  ]
+}
