@@ -13,7 +13,7 @@ summing a window is addition, with no branch to get wrong.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Final
 
@@ -48,6 +48,16 @@ def quantize_money(value: Decimal) -> Decimal:
     mean or a median of an even number of values.
     """
     return value.quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def ceil_money(value: Decimal) -> Decimal:
+    """Round up to the next centavo.
+
+    For a figure the user must reach - the contribution a goal requires, a minimum
+    payment - rounding to nearest would leave the target short by a cent or two. A
+    requirement rounds up; a measurement rounds to nearest.
+    """
+    return value.quantize(CENT, rounding=ROUND_CEILING)
 
 
 def median_money(values: Sequence[Decimal]) -> Decimal:

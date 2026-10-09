@@ -14,7 +14,6 @@ Real financial credentials are never involved, and no network call is made.
 
 from __future__ import annotations
 
-import calendar
 import json
 from collections.abc import Sequence
 from datetime import date
@@ -24,6 +23,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from compass_api.domain.dates import add_months, with_day
 from compass_api.domain.open_finance import (
     AccountSnapshot,
     InstitutionSnapshot,
@@ -71,11 +71,7 @@ def _shift_month(reference: date, month_offset: int, day: int) -> date:
     The day is clamped to the length of the target month, so a fixture entry on day 31
     lands on the last day of February rather than failing.
     """
-    month_index = reference.year * 12 + (reference.month - 1) + month_offset
-    year, month = divmod(month_index, 12)
-    month += 1
-    last_day = calendar.monthrange(year, month)[1]
-    return date(year, month, min(day, last_day))
+    return with_day(add_months(reference.replace(day=1), month_offset), day)
 
 
 class MockOpenFinanceProvider:
