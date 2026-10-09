@@ -35,6 +35,11 @@ def test_openapi_schema_documents_every_route(settings: Settings) -> None:
         "/insights/cashflow",
         "/insights/recurring-expenses",
         "/insights/saving-capacity",
+        "/goals",
+        "/goals/simulate",
+        "/goals/{goal_id}",
+        "/goals/{goal_id}/forecast",
+        "/goals/{goal_id}/comparison",
     }
 
 
