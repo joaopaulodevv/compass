@@ -72,8 +72,12 @@ class Settings(BaseSettings):
     # Redis runs in the local stack but nothing consumes it yet (see docs/architecture.md).
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
 
-    # --- Future capabilities (optional on purpose) -------------------------------
+    # --- LLM ----------------------------------------------------------------------
+    #: Without a key the conversational endpoints answer 503 and everything else works.
     openai_api_key: OptionalSecret = None
+    openai_model: str = "gpt-4o-mini"
+
+    # --- Future capabilities (optional on purpose) -------------------------------
     pinecone_api_key: OptionalSecret = None
     langfuse_public_key: OptionalSecret = None
     langfuse_secret_key: OptionalSecret = None

@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from compass_api.api.routes import (
     accounts,
+    conversations,
     goals,
     health,
     insights,
@@ -18,3 +19,4 @@ api_router.include_router(accounts.router)
 api_router.include_router(transactions.router)
 api_router.include_router(insights.router)
 api_router.include_router(goals.router)
+api_router.include_router(conversations.router)

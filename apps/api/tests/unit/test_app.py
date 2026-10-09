@@ -40,6 +40,8 @@ def test_openapi_schema_documents_every_route(settings: Settings) -> None:
         "/goals/{goal_id}",
         "/goals/{goal_id}/forecast",
         "/goals/{goal_id}/comparison",
+        "/conversations",
+        "/conversations/{conversation_id}/messages",
     }
 
 
