@@ -22,10 +22,17 @@ def test_lifespan_starts_and_stops_without_infrastructure(settings: Settings) ->
         assert client.get("/health").status_code == 200
 
 
-def test_openapi_schema_documents_the_operational_endpoints(settings: Settings) -> None:
+def test_openapi_schema_documents_every_route(settings: Settings) -> None:
     schema = create_app(settings).openapi()
 
-    assert set(schema["paths"]) == {"/health", "/ready"}
+    assert set(schema["paths"]) == {
+        "/health",
+        "/ready",
+        "/open-finance/sync",
+        "/accounts",
+        "/accounts/{account_id}",
+        "/transactions",
+    }
 
 
 def test_documentation_endpoints_are_disabled_in_production() -> None:
