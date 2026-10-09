@@ -10,7 +10,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from compass_api.db.models import Transaction
+from compass_api.db.models import Account, Transaction
+from compass_api.domain.analysis import Movement
+from compass_api.domain.categories import Categorization
 from compass_api.domain.open_finance import TransactionSnapshot
 
 #: Chunk size for the upsert. One statement per chunk keeps a large backfill off a
@@ -33,12 +35,18 @@ class TransactionRepository:
         provider: str,
         snapshots: Sequence[TransactionSnapshot],
         account_ids: Mapping[str, uuid.UUID],
+        categorizations: Mapping[str, Categorization],
         synced_at: datetime,
     ) -> int:
         """Insert or refresh transactions, returning how many rows were written.
 
         Conflicts on `(account_id, provider, external_id)` update in place, so re-syncing
         an overlapping window is safe: the provider's identifier is the idempotency key.
+        Refreshing also re-applies the stored category, which is how a change to the
+        categorisation rules reaches rows that were ingested under the old ones.
+
+        The caller supplies one categorization per snapshot, keyed by `external_id`; a
+        missing entry is a programming error and raises.
         """
         if not snapshots:
             return 0
@@ -48,6 +56,7 @@ class TransactionRepository:
             account_id = account_ids.get(snapshot.account_external_id)
             if account_id is None:
                 raise UnknownAccountError(snapshot.account_external_id)
+            categorization = categorizations[snapshot.external_id]
             rows.append(
                 {
                     "id": uuid.uuid4(),
@@ -61,6 +70,8 @@ class TransactionRepository:
                     "description": snapshot.description,
                     "merchant_name": snapshot.merchant_name,
                     "provider_category": snapshot.provider_category,
+                    "category": categorization.category,
+                    "category_rule": categorization.rule,
                     "synced_at": synced_at,
                 }
             )
@@ -81,6 +92,8 @@ class TransactionRepository:
                         "description": excluded.description,
                         "merchant_name": excluded.merchant_name,
                         "provider_category": excluded.provider_category,
+                        "category": excluded.category,
+                        "category_rule": excluded.category_rule,
                         "synced_at": excluded.synced_at,
                         "updated_at": func.now(),
                     },
@@ -136,6 +149,48 @@ class TransactionRepository:
         """Total matching rows, for pagination metadata."""
         scoped = self._scoped(user_id, account_id, since, until).subquery()
         return (await self._session.execute(select(func.count()).select_from(scoped))).scalar_one()
+
+    async def movements_for_user(
+        self, user_id: uuid.UUID, *, since: date, until: date
+    ) -> Sequence[Movement]:
+        """The window as the financial engine consumes it.
+
+        Returns domain `Movement` values rather than ORM rows: the engine must not be
+        able to depend on persistence, and the account type it needs lives one join away.
+        """
+        statement = (
+            select(
+                Transaction.id,
+                Transaction.account_id,
+                Account.type,
+                Transaction.booked_at,
+                Transaction.amount,
+                Transaction.category,
+                Transaction.description,
+                Transaction.merchant_name,
+            )
+            .join(Account, Account.id == Transaction.account_id)
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.booked_at >= since,
+                Transaction.booked_at <= until,
+            )
+            .order_by(Transaction.booked_at, Transaction.external_id)
+        )
+        rows = (await self._session.execute(statement)).all()
+        return [
+            Movement(
+                id=row.id,
+                account_id=row.account_id,
+                account_type=row.type,
+                booked_at=row.booked_at,
+                amount=row.amount,
+                category=row.category,
+                description=row.description,
+                merchant_name=row.merchant_name,
+            )
+            for row in rows
+        ]
 
     async def external_ids_for_user(self, user_id: uuid.UUID, provider: str) -> set[str]:
         """Provider ids already stored, so a sync can report what it created."""

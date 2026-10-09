@@ -9,6 +9,7 @@ from decimal import Decimal
 from sqlalchemy import (
     Date,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Numeric,
@@ -19,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from compass_api.db.base import Base, TimestampMixin
+from compass_api.domain.categories import ExpenseCategory
 from compass_api.domain.money import (
     CURRENCY_CODE_LENGTH,
     MONEY_PRECISION,
@@ -65,9 +67,28 @@ class Transaction(Base, TimestampMixin):
 
     description: Mapped[str] = mapped_column(String(512))
     merchant_name: Mapped[str | None] = mapped_column(String(255), default=None)
-    #: The provider's own label. Compass's categorisation is a later phase and will live
-    #: in its own column, so the raw value stays auditable.
+    #: The provider's own label, kept verbatim so Compass's own categorisation can always
+    #: be compared against what the provider claimed.
     provider_category: Mapped[str | None] = mapped_column(String(128), default=None)
+
+    #: Compass's own category, assigned by the deterministic rule engine at ingestion.
+    #: Stored rather than computed on read so it can be aggregated in SQL later and,
+    #: eventually, corrected by the user.
+    category: Mapped[ExpenseCategory] = mapped_column(
+        Enum(
+            ExpenseCategory,
+            native_enum=False,
+            create_constraint=True,
+            length=32,
+            name="expense_category",
+            validate_strings=True,
+        ),
+        server_default=ExpenseCategory.OTHER.value,
+        default=ExpenseCategory.OTHER,
+    )
+    #: Which rule produced that category (`keyword:groceries`, `provider:utilities`,
+    #: `sign:credit`, `fallback`). Makes a surprising categorisation debuggable.
+    category_rule: Mapped[str | None] = mapped_column(String(64), default=None)
 
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

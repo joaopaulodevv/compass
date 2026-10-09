@@ -24,6 +24,7 @@ from compass_api.repositories.accounts import AccountRepository
 from compass_api.repositories.institutions import InstitutionRepository
 from compass_api.repositories.transactions import TransactionRepository
 from compass_api.repositories.users import UserRepository
+from compass_api.services.categorization import categorize
 
 logger = logging.getLogger(__name__)
 
@@ -112,11 +113,23 @@ class OpenFinanceSyncService:
         )
 
         transactions = await self._provider.get_transactions(user_id, since, until)
+        # Categorisation happens here, not in the repository: it is a rule, and rules do
+        # not belong in code that writes SQL (ADR-0004).
+        categorizations = {
+            snapshot.external_id: categorize(
+                description=snapshot.description,
+                amount=snapshot.amount,
+                merchant_name=snapshot.merchant_name,
+                provider_category=snapshot.provider_category,
+            )
+            for snapshot in transactions
+        }
         written = await self._transactions.upsert_many(
             user_id=user_id,
             provider=provider_name,
             snapshots=transactions,
             account_ids=account_ids,
+            categorizations=categorizations,
             synced_at=synced_at,
         )
 

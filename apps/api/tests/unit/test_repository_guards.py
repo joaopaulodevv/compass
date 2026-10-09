@@ -57,7 +57,12 @@ async def test_empty_account_batch_is_a_no_op() -> None:
 
 async def test_empty_transaction_batch_is_a_no_op() -> None:
     written = await TransactionRepository(NO_SESSION).upsert_many(
-        user_id=USER_ID, provider="mock", snapshots=[], account_ids={}, synced_at=NOW
+        user_id=USER_ID,
+        provider="mock",
+        snapshots=[],
+        account_ids={},
+        categorizations={},
+        synced_at=NOW,
     )
 
     assert written == 0
@@ -82,5 +87,6 @@ async def test_transaction_referencing_an_unknown_account_fails_loudly() -> None
             provider="mock",
             snapshots=[TRANSACTION],
             account_ids={},
+            categorizations={},
             synced_at=NOW,
         )

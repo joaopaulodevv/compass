@@ -12,7 +12,8 @@ summing a window is addition, with no branch to get wrong.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from collections.abc import Sequence
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Final
 
@@ -33,3 +34,45 @@ class Direction(StrEnum):
     @classmethod
     def of(cls, amount: Decimal) -> Direction:
         return cls.OUTFLOW if amount < 0 else cls.INFLOW
+
+
+#: Every monetary result is rounded to this before leaving the engine, so a figure the
+#: user sees is a figure that can be stored and compared without surprise.
+CENT = Decimal("0.01")
+
+
+def quantize_money(value: Decimal) -> Decimal:
+    """Round to centavos, half away from zero.
+
+    Sums of stored amounts are already exact; this matters for derived figures such as a
+    mean or a median of an even number of values.
+    """
+    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def median_money(values: Sequence[Decimal]) -> Decimal:
+    """Median of monetary values, rounded to centavos.
+
+    The median rather than the mean wherever one unusual month must not move the answer:
+    a bonus or an annual insurance premium should not change what the user is told they
+    can save every month.
+
+    Raises:
+        ValueError: if there are no values - an empty median has no meaningful answer,
+            and returning zero would read as "can save nothing".
+    """
+    if not values:
+        raise ValueError("median of no values is undefined")
+
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2 == 1:
+        return quantize_money(ordered[middle])
+    return quantize_money((ordered[middle - 1] + ordered[middle]) / 2)
+
+
+def mean_money(values: Sequence[Decimal]) -> Decimal:
+    """Arithmetic mean, rounded to centavos."""
+    if not values:
+        raise ValueError("mean of no values is undefined")
+    return quantize_money(sum(values, start=Decimal(0)) / len(values))
