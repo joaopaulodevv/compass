@@ -70,6 +70,9 @@ jobs:
       - name: Apply migrations
         run: uv run --directory apps/api alembic upgrade head
 
+      - name: Fail on model/migration drift
+        run: uv run --directory apps/api alembic check
+
       - name: Run tests
         run: uv run --directory apps/api pytest --cov --cov-report=term-missing
 

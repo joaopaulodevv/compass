@@ -9,7 +9,7 @@ UVR := uv run --project $(API)
 .DEFAULT_GOAL := help
 
 .PHONY: help install run test test-unit lint format typecheck check migrate migration \
-        up down logs hooks
+        seed up down logs hooks
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "} {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -43,6 +43,12 @@ migrate: ## Apply migrations
 
 migration: ## Autogenerate a migration: make migration m="add goals table"
 	$(UV) alembic revision --autogenerate -m "$(m)"
+
+drift: ## Fail if the models and the migrations disagree
+	$(UV) alembic check
+
+seed: ## Create the local demo user and print its id
+	$(UV) python -m compass_api.seed
 
 up: ## Start the local stack (API + PostgreSQL + Redis)
 	docker compose up --build
