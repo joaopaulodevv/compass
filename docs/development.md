@@ -230,7 +230,37 @@ that argument, so it cannot be redirected at another user's data.
 what makes the agent's behaviour - tools offered, results fed back, budget respected -
 testable at all.
 
-## 8. Tests
+## 8. The knowledge base
+
+The assistant grounds what it says about financial concepts in a retrievable corpus rather
+than in training data. It is searchable directly:
+
+```bash
+curl 'localhost:8000/knowledge/search?q=reserva%20de%20emergencia'
+curl 'localhost:8000/knowledge/search?q=liquidez&exclude_stale=true'
+curl localhost:8000/knowledge/corpus
+```
+
+No user header: the corpus is the same for everyone and nothing user-specific is read.
+
+Each passage comes back with its `source`, `retrieved_at`, `age_days` and `is_stale`.
+Passages older than the freshness policy are **flagged, not dropped** - an answer built on
+something old should say so, and hiding it would leave the user thinking nothing was
+found.
+
+Two things to be clear about:
+
+- **The corpus is illustrative placeholder text** (`source: "Compass sandbox corpus"`,
+  no URL). Labelling written content with a real publisher's name would forge exactly the
+  provenance this design exists to carry. See
+  `apps/api/src/compass_api/knowledge/corpus/README.md`.
+- **The embedder is lexical, not semantic.** It hashes tokens and bigrams, so a query that
+  shares no words with a passage will not find it. Both the embedder and the store sit
+  behind protocols, so swapping either is an adapter and a config branch.
+
+The corpus is indexed lazily on first use, in process. There is no ingestion job to run.
+
+## 9. Tests
 
 ```bash
 make test                 # full suite with coverage
@@ -262,7 +292,7 @@ substitute for reading what is actually covered. Note one artefact: a few lines 
 immediately after an `await` inside the test client's worker thread are not traced, so
 they show as uncovered even though the tests exercise them.
 
-## 9. Code quality
+## 10. Code quality
 
 ```bash
 make lint        # ruff check
@@ -281,7 +311,7 @@ versions pinned in `apps/api/uv.lock`. Invoke pre-commit from the repository roo
 (`make hooks`, or `uv run --project apps/api pre-commit ...`): with `--directory` the
 working directory changes and pre-commit's path filters stop matching.
 
-## 10. Database migrations
+## 11. Database migrations
 
 ```bash
 make migrate                                   # upgrade head
@@ -307,7 +337,7 @@ Alembic takes the connection URL from application settings (`migrations/env.py`)
 migrations and the running application can never target different databases, and no
 connection string is ever committed.
 
-## 11. Environment variables
+## 12. Environment variables
 
 | Variable              | Required | Default                  | Purpose                              |
 | --------------------- | -------- | ------------------------ | ------------------------------------ |
@@ -326,7 +356,7 @@ connection string is ever committed.
 `DATABASE_URL` is the only required variable: the API cannot do anything useful without
 it, and a missing future credential must never stop the service from starting.
 
-## 12. Repository layout
+## 13. Repository layout
 
 ```
 compass/
@@ -340,6 +370,7 @@ compass/
 │   │   │   ├── providers/    # Open Finance adapters (+ sandbox fixture)
 │   │   │   ├── repositories/ # All SQL lives here
 │   │   │   ├── agent/       # LLM interface, graph, prompt, toolbox
+│   │   │   ├── knowledge/   # Corpus, chunking, embeddings, store, retrieval
 │   │   │   ├── mcp_server/   # MCP adapter over the same services
 │   │   │   ├── services/     # Business rules (ingestion today)
 │   │   │   ├── migrations/   # Alembic environment and revisions
@@ -354,7 +385,7 @@ compass/
 └── Makefile
 ```
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'compass_api'`** - the project is not installed
 in the virtualenv: `uv sync --directory apps/api --all-groups`.
@@ -384,6 +415,9 @@ the sync call first, and check you are sending the same `X-User-Id`.
 **A transaction has an unexpected category** - read its `category_rule` on
 `GET /transactions`. It names the rule that fired, so the fix is either a rule in
 `services/categorization.py` or nothing at all.
+
+**`/knowledge/search` returns nothing** - the embedder matches words, not meaning. Try
+the vocabulary the corpus uses, and remember it is placeholder content.
 
 **`503` from a `/conversations` endpoint** - `OPENAI_API_KEY` is not set. The financial
 API does not need it; only the assistant does.

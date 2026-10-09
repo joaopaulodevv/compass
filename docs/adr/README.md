@@ -20,6 +20,7 @@ intentions.
 | [0010](0010-goals-store-terms-not-projections.md)                | A goal stores its terms; every projection is computed | Accepted |
 | [0011](0011-mcp-tools-as-a-second-transport.md)                  | MCP is a second transport over the same services | Accepted |
 | [0012](0012-agent-orchestrates-tools-never-computes.md)          | The agent orchestrates tools behind a provider interface it owns | Accepted |
+| [0013](0013-local-retrieval-first-vendor-decision-deferred.md)   | Retrieval runs locally; the vector-store decision stays open | Accepted |
 
 ## Not yet decided
 
@@ -28,7 +29,8 @@ They live in [../roadmap.md](../roadmap.md) until there is enough information to
 
 - Open Finance provider (Pluggy, Belvo, other) - the abstraction is decided in ADR-0006,
   the vendor is not
-- Vector store (Pinecone vs `pgvector`)
+- Vector store (Pinecone vs `pgvector`). The retrieval machinery is built behind a
+  protocol; ADR-0013 records why the vendor is still open and what would decide it
 - Observability vendors (Langfuse, Datadog) and their integration points
 - Whether expense categorisation stays rule-based or gains a model. The rules are in
   place and measurable; ADR-0008 and ADR-0009 depend on them staying deterministic

@@ -19,7 +19,9 @@ into numbers - cash flow, categorised spending, recurring commitments, saving ca
 all computed on request and never stored. Phase 4 added goals: the terms are stored, the
 projections are not. Phase 5 exposed everything as MCP tools, and Phase 6 put a LangGraph
 agent in front of them - it decides which tools to call and explains what comes back,
-without ever computing a number itself.
+without ever computing a number itself. Phase 7 gave it a knowledge base to cite, so
+claims about how products work come from a retrievable document rather than from training
+data.
 
 ```mermaid
 flowchart LR
@@ -65,7 +67,7 @@ flowchart TB
     api --> agent["LangGraph agent\n(Implemented)"]
 
     agent -->|MCP| tools["Financial MCP tools\n(Implemented)"]
-    agent -->|retrieval| rag["Knowledge base / RAG\n(Future)"]
+    agent -->|retrieval| rag["Knowledge base / RAG\n(Implemented, local)"]
 
     tools --> services["Financial engine\ndeterministic calculations\n(Implemented)"]
     api --> sync["Sync service\n(Implemented)"]
@@ -74,7 +76,7 @@ flowchart TB
     sync --> ofp["Open Finance provider adapter\n(mock implemented,\nreal vendor Future)"]
 
     repos --> postgres[("PostgreSQL\n(Implemented)")]
-    rag --> vectors[("Vector store\n(Future)")]
+    rag --> vectors[("Vector store\n(local; vendor open)")]
     ofp --> openfinance["Open Finance provider\n(Future)"]
 
     api --> cache[("Redis\n(infrastructure only)")]
@@ -304,23 +306,39 @@ interface (chat completion, tool calling, embeddings) so that switching provider
 running a cheaper model for a subtask is a configuration change, not a rewrite.
 `OPENAI_API_KEY` is already declared in settings as optional.
 
-### Knowledge base / RAG (Future)
+### Knowledge base / RAG (machinery implemented, vendor and sources open)
 
-Pinecone is the current intention, not a decision - it has no ADR yet. The non-negotiable
-part is **provenance and freshness**: financial product conditions go stale, and a
-confidently outdated interest rate is worse than no answer.
+The pipeline runs end to end today:
 
-Planned sources: Banco Central do Brasil, ANBIMA, Tesouro Direto, official bank product
-documentation, financial education material.
+```
+corpus -> chunking -> embeddings -> vector store -> freshness-aware retrieval -> tool
+```
 
-Planned chunk metadata:
+Embeddings and the vector store are each a protocol Compass owns. The implementations
+behind them are local - a hashing embedder and an exact-scan in-memory store - so the
+retrieval that grounds the assistant's claims is testable with no network and no vendor
+account. Pinecone remains the stated intention and `pgvector` the obvious alternative;
+neither is decided ([ADR-0013](adr/0013-local-retrieval-first-vendor-decision-deferred.md)).
+
+Every chunk carries its provenance:
 
 ```
 source | institution | product | category | retrieved_at | valid_from | url
 ```
 
-Retrieval will filter and rank on freshness, and answers will cite the source and the
-date, so a reader can tell whether a figure is current.
+Retrieval returns the age in days and a staleness flag. Old passages are **flagged, not
+dropped** - omitting the only passage on a topic leaves the user believing nothing was
+found, while an answer built on something two years old should say so.
+
+Two limits are stated rather than hidden:
+
+- **The corpus is illustrative placeholder text**, attributed to nobody. Labelling written
+  content with a real publisher's name would forge the provenance the design exists to
+  carry. Real sources - Banco Central do Brasil, ANBIMA, Tesouro Direto, banks' own
+  documentation - arrive with their own.
+- **The embedder is lexical, not semantic.** It matches words, so a query sharing no
+  vocabulary with a passage will not find it. A model-based embedder behind the same
+  protocol is the upgrade.
 
 ## 7. Observability (Future)
 
@@ -356,13 +374,16 @@ identifiers only - never amounts, descriptions or merchants.
 | `POST /conversations`, `GET /conversations` | Chat threads            | Yes                  |
 | `POST /conversations/{id}/messages` | Ask the assistant               | Yes                  |
 | `GET /conversations/{id}/messages`  | Read a thread                   | Yes                  |
+| `GET /knowledge/search`    | Search the curated corpus                | No - shared knowledge |
+| `GET /knowledge/corpus`    | How much is indexed                      | No - shared knowledge |
 
 ### MCP surface
 
 The same services are exposed as nine MCP tools for an agent to call -
 `get_accounts`, `get_transactions`, `get_cashflow`, `detect_recurring_expenses`,
 `calculate_saving_capacity`, `list_goals`, `simulate_goal`, `calculate_goal_gap`,
-`compare_goal_paths`. The server runs standalone over stdio
+`compare_goal_paths`, plus `search_financial_knowledge` over the shared corpus. The server
+runs standalone over stdio
 (`python -m compass_api.mcp_server`), takes the acting user as an explicit argument on
 every tool, and tells the model in its instructions not to do arithmetic of its own.
 
@@ -409,7 +430,8 @@ sentence instead of silence.
 Three properties are worth knowing, and all three are structural rather than prompted:
 
 - **The model cannot reach another user's data.** `user_id` is removed from every tool
-  schema it sees and injected server-side. An argument that is never offered cannot be
+  schema it sees and injected server-side - only into the tools that declare it, since the
+  knowledge tool reads nothing user-specific. An argument that is never offered cannot be
   passed, so neither a crafted question nor text planted in a transaction description can
   redirect a tool.
 - **The model's capabilities are exactly the MCP tools.** The agent calls the MCP server;

@@ -103,15 +103,28 @@ with the suitability rules in Phase 8, where something finally reads it.
   keeps working
 - ADR-0012
 
-## Phase 7 - Knowledge base and RAG (next)
+## Phase 7 - Knowledge base and RAG (done)
 
-- Source curation and an ingestion pipeline with provenance metadata
-  (`source`, `institution`, `product`, `category`, `retrieved_at`, `valid_from`, `url`)
-- Vector store integration (Pinecone intended, not yet decided - needs an ADR)
-- Freshness-aware retrieval and citations in answers
-- Retrieval quality evaluation
+- The retrieval machinery end to end: corpus loading, paragraph-aligned chunking,
+  embeddings, a vector store, ranking and freshness-aware retrieval
+- Embeddings and the vector store are each a protocol Compass owns, with a local
+  implementation behind it - a hashing embedder and an exact-scan store, so the whole
+  pipeline runs with no network and no vendor account
+- Provenance on every passage (`source`, `category`, `retrieved_at`, `valid_from`,
+  `age_days`); old passages are flagged, not silently dropped
+- `search_financial_knowledge` as an MCP tool the agent chooses to call, so what grounds
+  an answer is visible in the stored tool calls
+- `GET /knowledge/search`, `GET /knowledge/corpus`
+- The sandbox corpus is labelled as illustrative placeholder text attributed to nobody;
+  faking a publisher's name would forge the very provenance the phase exists to carry
+- ADR-0013 records why the vector-store vendor is still open
 
-## Phase 8 - Recommendations
+**Still open, and stated plainly:** the corpus is placeholder content and the embedder is
+lexical, not semantic. Ingesting real sources (Banco Central do Brasil, ANBIMA, Tesouro
+Direto, banks' own documentation) and moving to a model-based embedder are the next steps,
+and both land behind the protocols already in place.
+
+## Phase 8 - Recommendations (next)
 
 - Product model and suitability constraints
 - Recommendation assembly: profile + computed capacity + retrieved product knowledge

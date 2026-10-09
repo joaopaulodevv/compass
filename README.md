@@ -3,7 +3,7 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phases 1-6 of 11 complete.** Financial data flows in from an Open
+> **Project status: Phases 1-7 of 11 complete.** Financial data flows in from an Open
 > Finance abstraction into PostgreSQL, and a deterministic engine turns it into cash
 > flow, categorised spending, recurring commitments and a sustainable saving capacity -
 > against a local sandbox fixture, not a real provider. Goals can be set and simulated
@@ -54,12 +54,12 @@ flowchart TB
     api["FastAPI application API\n(foundation implemented)"]
     api --> agent["LangGraph agent\n(Implemented)"]
     agent -->|MCP| tools["Financial tools\n(Implemented)"]
-    agent -->|retrieval| rag["Knowledge base\n(Future)"]
+    agent -->|retrieval| rag["Knowledge base\n(Implemented, local)"]
     tools --> services["Financial services\ndeterministic\n(Future)"]
     services --> repos["Repositories\n(Planned)"]
     services --> ofp["Open Finance adapter\n(Future)"]
     repos --> pg[("PostgreSQL\n(Implemented)")]
-    rag --> vec[("Vector store\n(Future)")]
+    rag --> vec[("Vector store\n(local; vendor open)")]
     ofp --> of["Open Finance provider\n(Future)"]
     api --> redis[("Redis\ninfrastructure only")]
 ```
@@ -137,14 +137,27 @@ Full detail, including the layering rules and the request flow for a goal simula
   a crafted question cannot redirect a tool at another user's data
 - Conversations persisted with the tool calls behind each answer, so a figure can be
   traced after the fact
-- 298 tests (unit + integration), coverage reporting, twelve ADRs
 
-**Planned next** - the knowledge base: curated financial sources with provenance and
-dates, retrieved so product claims are cited rather than recalled. See
-[Phase 7](docs/roadmap.md#phase-7---knowledge-base-and-rag-next).
+*Knowledge base (Phase 7)*
 
-**Not implemented** - a real Open Finance provider, vector store, RAG ingestion,
-Langfuse, Datadog, authentication, recommendations, frontend.
+- Retrieval end to end: chunking, embeddings, a vector store, ranking and freshness -
+  each vendor-facing piece behind a protocol Compass owns, with a local implementation, so
+  it runs with no network and no account
+- Provenance on every passage; passages older than the policy are **flagged, not dropped**,
+  so an answer can say its source may be out of date
+- `search_financial_knowledge` as a tool the agent chooses to call, making the grounding of
+  an answer visible in the stored tool calls
+- The sandbox corpus is labelled illustrative and attributed to nobody - faking a
+  publisher's name would forge the provenance the whole design exists to carry
+- 336 tests (unit + integration), coverage reporting, thirteen ADRs
+
+**Planned next** - recommendations: a product model with suitability rules, assembled from
+the measured profile and the retrieved knowledge, explaining both the numbers and the
+sources. See [Phase 8](docs/roadmap.md#phase-8---recommendations-next).
+
+**Not implemented** - a real Open Finance provider, real knowledge sources (the corpus is
+placeholder text), semantic embeddings, a managed vector store, Langfuse, Datadog,
+authentication, recommendations, frontend.
 
 Redis runs in the local stack but **nothing consumes it yet**; it is infrastructure
 prepared for caching, background jobs and rate limiting. No client library is installed,
@@ -165,7 +178,7 @@ because inventing a use case to justify a dependency is worse than an idle conta
 | Agent            | LangGraph, own LLM interface, OpenAI adapter | Implemented             |
 | Tooling protocol | MCP (`mcp` SDK, stdio server)               | Implemented             |
 | Financial data (real) | A vendor adapter behind the same protocol | Future              |
-| Knowledge base   | RAG, Pinecone intended (undecided)          | Future                  |
+| Knowledge base   | RAG behind own protocols; local store today, vendor undecided | Implemented (local) |
 | Observability    | Langfuse (agent), Datadog (application)     | Future                  |
 | Frontend         | Next.js, React, TypeScript                  | Future                  |
 
@@ -259,6 +272,7 @@ compass/
 │   │   │   ├── providers/        # Open Finance adapters + sandbox fixture
 │   │   │   ├── repositories/     # All SQL lives here
 │   │   │   ├── agent/            # LLM interface, graph, prompt, toolbox
+│   │   │   ├── knowledge/        # Corpus, chunking, embeddings, store, retrieval
 │   │   │   ├── mcp_server/       # MCP adapter over the same services
 │   │   │   ├── services/         # Ingestion, categorisation, the pure engine
 │   │   │   ├── migrations/       # Alembic environment and revisions
@@ -298,6 +312,7 @@ compass/
 | [0010](docs/adr/0010-goals-store-terms-not-projections.md) | A goal stores its terms; every projection is computed |
 | [0011](docs/adr/0011-mcp-tools-as-a-second-transport.md) | MCP is a second transport over the same services |
 | [0012](docs/adr/0012-agent-orchestrates-tools-never-computes.md) | The agent orchestrates tools behind a provider interface it owns |
+| [0013](docs/adr/0013-local-retrieval-first-vendor-decision-deferred.md) | Retrieval runs locally; the vector-store decision stays open |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the
