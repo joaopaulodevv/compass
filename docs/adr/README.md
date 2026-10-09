@@ -13,13 +13,16 @@ intentions.
 | [0003](0003-postgresql-sqlalchemy-alembic.md)                    | PostgreSQL + SQLAlchemy 2.x + Alembic            | Accepted |
 | [0004](0004-thin-mcp-tools-over-a-service-layer.md)              | Financial capabilities as thin MCP tools over services | Accepted |
 | [0005](0005-deterministic-financial-engine.md)                   | Deterministic engine computes; the LLM explains  | Accepted |
+| [0006](0006-open-finance-provider-abstraction.md)                | Open Finance data enters through a protocol Compass owns | Accepted |
+| [0007](0007-money-as-signed-decimals.md)                         | Money is a signed decimal, everywhere            | Accepted |
 
 ## Not yet decided
 
 These are intentionally **not** ADRs. Recording them as decisions would be pretending.
 They live in [../roadmap.md](../roadmap.md) until there is enough information to choose:
 
-- Open Finance provider (Pluggy, Belvo, other)
+- Open Finance provider (Pluggy, Belvo, other) - the abstraction is decided in ADR-0006,
+  the vendor is not
 - Vector store (Pinecone vs `pgvector`)
 - Observability vendors (Langfuse, Datadog) and their integration points
 - Agent topology and conversation memory

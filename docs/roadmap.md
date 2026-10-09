@@ -18,28 +18,40 @@ working, tested state - no half-wired integrations waiting for a future commit.
 - GitHub Actions: quality, tests, commit messages, Docker build
 - README, architecture, development docs, ADRs 0001-0005
 
-## Phase 2 - Financial domain and ingestion from mock data (next)
+## Phase 2 - Financial domain and ingestion from sandbox data (done)
 
-The smallest step that produces real financial data to compute on.
-
-- `FinancialInstitution`, `Account`, `Transaction` models and migrations, all scoped by
+- `FinancialInstitution`, `Account` and `Transaction` models and migration, all scoped by
   `user_id`
-- `OpenFinanceProvider` protocol plus a mock implementation returning deterministic
-  sandbox data
-- An ingestion service that persists accounts and transactions idempotently
-- Repositories for the above, with integration tests
-- Read endpoints for accounts and transactions
-- ADR: Open Finance abstraction and ingestion strategy
+- `OpenFinanceProvider` protocol plus `MockOpenFinanceProvider` over a committed fixture:
+  six months of realistic history, no network, no credentials
+- Provider-neutral snapshots (`domain/open_finance.py`) as the only shapes crossing the
+  provider boundary
+- Idempotent ingestion keyed on the provider's own identifiers, so overlapping syncs
+  update rather than duplicate
+- Repositories owning all SQL; money as signed `NUMERIC(18, 2)`
+- `POST /open-finance/sync`, `GET /accounts`, `GET /accounts/{id}`, `GET /transactions`
+  with filtering and pagination
+- `X-User-Id` as the temporary isolation key, required and validated on every financial
+  endpoint
+- `make seed` for a local demo user; `alembic check` in CI against model/migration drift
+- ADR-0006 (provider abstraction and idempotent ingestion), ADR-0007 (signed decimals)
 
 Deliberately still absent: provider SDKs, authentication, any calculation.
 
-## Phase 3 - Deterministic financial engine
+## Phase 3 - Deterministic financial engine (next)
 
-- Cash flow aggregation over a time window
-- Expense categorisation (rule-based first; a classifier is a later question)
+The data is in place; this turns it into numbers.
+
+- Cash flow aggregation over a time window (inflow, outflow, net, per month)
+- Expense categorisation (rule-based first; a classifier is a later question), stored in
+  its own column so the provider's label stays auditable
 - Recurring expense detection
 - Sustainable saving capacity
 - Unit tests over fixed fixtures - these are the numbers everything else trusts
+- `GET /cashflow` and the first endpoints that return computed values
+
+The sandbox fixture was written for this: six months of salary, rent, utilities,
+subscriptions, groceries and transfers, with amounts that vary month to month.
 
 ## Phase 4 - Goals and simulation
 

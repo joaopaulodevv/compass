@@ -37,6 +37,9 @@ curl localhost:8000/ready     # {"status":"ready","checks":{"database":"ok"}}
 open http://localhost:8000/docs
 ```
 
+Then seed a user and pull in sandbox financial data - see
+[Working with financial data](#5-working-with-financial-data).
+
 Tear down with `docker compose down -v` (`-v` also drops the database volume).
 
 ## 3. Or run the API on your machine
@@ -47,6 +50,7 @@ Infrastructure in Docker, application on the host - the fastest edit/test loop:
 docker compose up -d postgres redis
 make install                               # uv sync + git hooks
 make migrate                               # alembic upgrade head
+make seed                                  # create the local demo user
 make run                                   # uvicorn with --reload
 ```
 
@@ -73,7 +77,51 @@ FastAPI generates it; we do not maintain a copy.
 
 All three are disabled automatically when `APP_ENV=production`.
 
-## 5. Tests
+## 5. Working with financial data
+
+Authentication does not exist yet, so the acting user travels in the **`X-User-Id`
+header** and every financial endpoint requires it. `make seed` creates a demo user with a
+fixed id, so the commands below work on any machine:
+
+```bash
+make seed
+# demo user ready: 00000000-0000-4000-8000-000000000001 <demo@compass.local>
+
+USER=00000000-0000-4000-8000-000000000001
+
+# Ingest six months of sandbox history (no network, no credentials).
+curl -X POST -H "X-User-Id: $USER" localhost:8000/open-finance/sync
+
+# Safe to repeat: ingestion is idempotent, so nothing is duplicated.
+curl -X POST -H "X-User-Id: $USER" localhost:8000/open-finance/sync
+
+curl -H "X-User-Id: $USER" localhost:8000/accounts
+curl -H "X-User-Id: $USER" 'localhost:8000/transactions?limit=5'
+curl -H "X-User-Id: $USER" 'localhost:8000/transactions?since=2026-01-01&until=2026-03-31'
+```
+
+A narrower window can be requested explicitly; both ends are optional and inclusive:
+
+```bash
+curl -X POST -H "X-User-Id: $USER" -H 'Content-Type: application/json' \
+  -d '{"since": "2026-01-01", "until": "2026-03-31"}' \
+  localhost:8000/open-finance/sync
+```
+
+Things worth knowing:
+
+- **Amounts are JSON strings** (`"-2400.00"`), not numbers, so no client turns centavos
+  into a float. They are signed: negative is money leaving the account.
+- **Data is scoped by user.** Another `X-User-Id` sees an empty list, and an account id
+  that is not yours returns `404` rather than `403`.
+- **The provider is a local fixture.** `MockOpenFinanceProvider` reads
+  `providers/open_finance/fixtures/sandbox.json`: six months of realistic history for
+  three accounts at two institutions. No real provider has been chosen and no credentials
+  are involved.
+- Fixture dates are stored as a month offset plus a day, resolved against today, so the
+  sandbox data is always recent.
+
+## 6. Tests
 
 ```bash
 make test                 # full suite with coverage
@@ -88,12 +136,19 @@ Two suites, by design:
   with migrations applied (`make migrate`). They **skip** rather than fail when no
   database is reachable, so `make test` stays useful offline.
 
+Integration tests create their own user and delete it afterwards, which cascades to that
+user's accounts and transactions - so tests cannot see each other's data, and the cascade
+itself gets exercised. The sandbox provider is pinned to a fixed reference date, so every
+assertion about dates and windows is deterministic.
+
 Point the integration suite somewhere else with `TEST_DATABASE_URL`.
 
-Coverage is reported as a diagnostic (`--cov`), with no threshold gate. A number is not
-a substitute for reading what is actually covered.
+Coverage is reported as a diagnostic (`--cov`), with no threshold gate. A number is not a
+substitute for reading what is actually covered. Note one artefact: a few lines that run
+immediately after an `await` inside the test client's worker thread are not traced, so
+they show as uncovered even though the tests exercise them.
 
-## 6. Code quality
+## 7. Code quality
 
 ```bash
 make lint        # ruff check
@@ -112,27 +167,33 @@ versions pinned in `apps/api/uv.lock`. Invoke pre-commit from the repository roo
 (`make hooks`, or `uv run --project apps/api pre-commit ...`): with `--directory` the
 working directory changes and pre-commit's path filters stop matching.
 
-## 7. Database migrations
+## 8. Database migrations
 
 ```bash
 make migrate                                   # upgrade head
 make migration m="add financial goals table"   # autogenerate a revision
+make drift                                     # fail if models and migrations disagree
 uv run --directory apps/api alembic downgrade -1
 uv run --directory apps/api alembic history
 ```
+
+`make drift` (`alembic check`) is also a CI step: it fails the build if a model changed
+without a migration.
 
 Two rules:
 
 1. A new model must be imported in `apps/api/src/compass_api/db/models/__init__.py`.
    Alembic autogenerate only sees tables registered on `Base.metadata`.
 2. Always read the generated revision before committing it. Autogenerate is a drafting
-   tool, not an oracle - and check that `downgrade()` is correct too.
+   tool, not an oracle - and check that `downgrade()` is correct too. The Phase 2
+   revision is a concrete example: autogenerate emitted the enum's CHECK constraint
+   twice and the duplicate had to be removed by hand.
 
 Alembic takes the connection URL from application settings (`migrations/env.py`), so
 migrations and the running application can never target different databases, and no
 connection string is ever committed.
 
-## 8. Environment variables
+## 9. Environment variables
 
 | Variable              | Required | Default                  | Purpose                              |
 | --------------------- | -------- | ------------------------ | ------------------------------------ |
@@ -150,17 +211,22 @@ connection string is ever committed.
 `DATABASE_URL` is the only required variable: the API cannot do anything useful without
 it, and a missing future credential must never stop the service from starting.
 
-## 9. Repository layout
+## 10. Repository layout
 
 ```
 compass/
 ├── apps/
 │   ├── api/                  # FastAPI backend (implemented)
 │   │   ├── src/compass_api/
-│   │   │   ├── api/          # Routers and route handlers (transport only)
+│   │   │   ├── api/          # Routers, handlers, dependencies (transport only)
 │   │   │   ├── core/         # Settings, logging
 │   │   │   ├── db/           # Base, session, models
+│   │   │   ├── domain/       # Money rules, provider-neutral snapshots
+│   │   │   ├── providers/    # Open Finance adapters (+ sandbox fixture)
+│   │   │   ├── repositories/ # All SQL lives here
+│   │   │   ├── services/     # Business rules (ingestion today)
 │   │   │   ├── migrations/   # Alembic environment and revisions
+│   │   │   ├── seed.py       # Local demo user
 │   │   │   └── main.py       # Application factory
 │   │   └── tests/{unit,integration}
 │   └── web/                  # Future Next.js app (README only)
@@ -171,7 +237,7 @@ compass/
 └── Makefile
 ```
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 **`ModuleNotFoundError: No module named 'compass_api'`** - the project is not installed
 in the virtualenv: `uv sync --directory apps/api --all-groups`.
@@ -185,3 +251,12 @@ that `DATABASE_URL` uses `localhost` from the host and `postgres` inside Compose
 
 **Integration tests all skip** - that is the designed behaviour with no database
 reachable. Start one and run `make migrate`.
+
+**`422` from a financial endpoint** - the `X-User-Id` header is missing or is not a UUID.
+It is rejected before any query runs.
+
+**`404` from `POST /open-finance/sync`** - that user does not exist. Run `make seed`, or
+use the id of a user you created.
+
+**`/accounts` returns an empty list** - nothing has been ingested for that user yet. Run
+the sync call first, and check you are sending the same `X-User-Id`.

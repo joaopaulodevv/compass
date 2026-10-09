@@ -3,10 +3,12 @@
 An AI-powered personal financial assistant: it reads your financial history, works out
 what you can actually afford, and explains the answer.
 
-> **Project status: Phase 1 of 11 complete.** The backend foundation is built and tested.
-> The agent, the financial engine, the Open Finance integration, the knowledge base and
-> the frontend are **not implemented yet**. This README distinguishes throughout between
-> what exists and what is planned - see the [roadmap](docs/roadmap.md).
+> **Project status: Phases 1-2 of 11 complete.** The backend foundation is built, and
+> financial data now flows in from an Open Finance abstraction into PostgreSQL and back
+> out over HTTP - against a local sandbox fixture, not a real provider. The financial
+> calculations, the agent, the knowledge base and the frontend are **not implemented
+> yet**. This README distinguishes throughout between what exists and what is planned -
+> see the [roadmap](docs/roadmap.md).
 
 ---
 
@@ -67,22 +69,35 @@ Full detail, including the layering rules and the request flow for a goal simula
 
 **Implemented**
 
+*Foundation (Phase 1)*
+
 - FastAPI application with an application factory and lifespan-managed resources
 - `GET /health` (liveness, no dependencies) and `GET /ready` (readiness, checks PostgreSQL)
 - Generated OpenAPI docs at `/docs`, `/redoc`, `/openapi.json`, disabled in production
 - Typed, environment-driven configuration; future credentials optional by design
 - Structured single-line JSON logging
-- Async SQLAlchemy 2.x + asyncpg, with a minimal `users` model
-- Alembic with an async environment and the initial migration
+- Async SQLAlchemy 2.x + asyncpg, Alembic with an async environment
 - Docker Compose stack: API + PostgreSQL + Redis
-- Test suite (26 tests, unit + integration), coverage reporting
 - ruff, mypy strict, pre-commit, Conventional Commits, GitHub Actions
-- Architecture documentation and five ADRs
 
-**Planned next** - financial domain models, a mock Open Finance provider, and transaction
-ingestion. See [Phase 2](docs/roadmap.md#phase-2---financial-domain-and-ingestion-from-mock-data-next).
+*Financial domain (Phase 2)*
 
-**Not implemented** - Open Finance integration, financial calculations, MCP tools,
+- `OpenFinanceProvider` protocol owned by Compass, with a sandbox implementation over a
+  committed fixture: six months of realistic history, no network, no credentials
+- `financial_institutions`, `accounts` and `transactions`, all scoped by `user_id`
+- Idempotent ingestion keyed on the provider's own identifiers - re-syncing an
+  overlapping window updates rows instead of duplicating them
+- `POST /open-finance/sync`, `GET /accounts`, `GET /accounts/{id}`, `GET /transactions`
+  (filterable by account and date window, paginated)
+- Money as signed `NUMERIC(18, 2)`, serialised as JSON strings so no client rounds
+  centavos into a float
+- 94 tests (unit + integration), coverage reporting, seven ADRs
+
+**Planned next** - the deterministic financial engine: cash flow over a window, expense
+categorisation, recurring-expense detection, sustainable saving capacity. See
+[Phase 3](docs/roadmap.md#phase-3---deterministic-financial-engine-next).
+
+**Not implemented** - a real Open Finance provider, financial calculations, MCP tools,
 LangGraph agent, LLM calls, vector store, RAG ingestion, Langfuse, Datadog,
 authentication, recommendations, frontend.
 
@@ -96,6 +111,7 @@ because inventing a use case to justify a dependency is worse than an idle conta
 | ---------------- | ------------------------------------------- | ----------------------- |
 | Backend          | Python 3.13, FastAPI, Pydantic v2           | Implemented             |
 | Database         | PostgreSQL 16, SQLAlchemy 2.x (async), Alembic | Implemented          |
+| Financial data   | Own `OpenFinanceProvider` protocol; sandbox fixture adapter | Implemented (mock) |
 | Packaging        | uv, `pyproject.toml`                        | Implemented             |
 | Cache / queue    | Redis                                       | Infrastructure only     |
 | Quality          | ruff, mypy (strict), pytest, pre-commit     | Implemented             |
@@ -103,7 +119,7 @@ because inventing a use case to justify a dependency is worse than an idle conta
 | Local infra      | Docker Compose                              | Implemented             |
 | Agent            | LangGraph, provider-agnostic LLM interface (OpenAI first) | Future    |
 | Tooling protocol | MCP                                         | Future                  |
-| Financial data   | Open Finance provider behind an owned protocol | Future               |
+| Financial data (real) | A vendor adapter behind the same protocol | Future              |
 | Knowledge base   | RAG, Pinecone intended (undecided)          | Future                  |
 | Observability    | Langfuse (agent), Datadog (application)     | Future                  |
 | Frontend         | Next.js, React, TypeScript                  | Future                  |
@@ -119,12 +135,22 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Then:
+Then check it is up, create the demo user, and pull in the sandbox history:
 
 ```bash
 curl localhost:8000/health   # {"status":"ok","version":"0.1.0"}
 curl localhost:8000/ready    # {"status":"ready","checks":{"database":"ok"}}
+
+make seed                    # -> 00000000-0000-4000-8000-000000000001
+USER=00000000-0000-4000-8000-000000000001
+
+curl -X POST -H "X-User-Id: $USER" localhost:8000/open-finance/sync
+curl -H "X-User-Id: $USER" localhost:8000/accounts
+curl -H "X-User-Id: $USER" 'localhost:8000/transactions?limit=5'
 ```
+
+`X-User-Id` is a temporary stand-in for authentication; every financial query is already
+scoped by it. Running the sync twice is safe - ingestion is idempotent.
 
 API documentation: <http://localhost:8000/docs> (Swagger UI) and
 <http://localhost:8000/redoc>.
@@ -152,9 +178,11 @@ make test-unit   # no infrastructure required
 make check       # lint + types + tests (what CI runs)
 ```
 
-Unit tests construct settings explicitly and need no infrastructure. Integration tests
-are marked `integration` and need a reachable PostgreSQL with migrations applied; they
-skip rather than fail without one.
+94 tests. Unit tests construct settings explicitly and need no infrastructure.
+Integration tests are marked `integration` and need a reachable PostgreSQL with
+migrations applied; they skip rather than fail without one. Each creates its own user and
+deletes it afterwards, so they cannot see each other's data, and the sandbox provider is
+pinned to a fixed reference date so date assertions are deterministic.
 
 Coverage is a diagnostic, not a target - there is no threshold gate.
 
@@ -165,10 +193,15 @@ compass/
 ├── apps/
 │   ├── api/                      # FastAPI backend (implemented)
 │   │   ├── src/compass_api/
-│   │   │   ├── api/              # Routers and handlers (transport only)
+│   │   │   ├── api/              # Routers, handlers, dependencies (transport only)
 │   │   │   ├── core/             # Settings, structured logging
 │   │   │   ├── db/               # Declarative base, session, models
+│   │   │   ├── domain/           # Money rules, provider-neutral snapshots
+│   │   │   ├── providers/        # Open Finance adapters + sandbox fixture
+│   │   │   ├── repositories/     # All SQL lives here
+│   │   │   ├── services/         # Business rules (ingestion today)
 │   │   │   ├── migrations/       # Alembic environment and revisions
+│   │   │   ├── seed.py           # Local demo user
 │   │   │   └── main.py           # Application factory
 │   │   ├── tests/{unit,integration}
 │   │   ├── Dockerfile
@@ -197,6 +230,8 @@ compass/
 | [0003](docs/adr/0003-postgresql-sqlalchemy-alembic.md) | PostgreSQL + SQLAlchemy 2.x + Alembic |
 | [0004](docs/adr/0004-thin-mcp-tools-over-a-service-layer.md) | Financial capabilities as thin MCP tools over services |
 | [0005](docs/adr/0005-deterministic-financial-engine.md) | The deterministic engine computes, the LLM explains |
+| [0006](docs/adr/0006-open-finance-provider-abstraction.md) | Open Finance data enters through a protocol Compass owns |
+| [0007](docs/adr/0007-money-as-signed-decimals.md) | Money is a signed decimal, everywhere |
 
 Vendor choices that are not yet decided - Open Finance provider, vector store,
 observability integration - are tracked as open questions in the
